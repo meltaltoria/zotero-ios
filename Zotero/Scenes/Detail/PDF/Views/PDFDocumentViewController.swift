@@ -1069,12 +1069,13 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         let apiKey = PDFTranslationSettingsStore.apiKey
 
         if provider == "apple" {
-            if #available(iOS 18.0, *) {
+            if translationCompletion != nil {
+                presentTranslationError("Apple Translation can translate the annotation, but saving the result to the annotation comment is not supported yet. Use Google or OpenAI-compatible mode for that action.")
+            } else if #available(iOS 18.0, *) {
                 presentSystemTranslation(
                     text: trimmed,
                     sourceView: sourceView,
-                    sourceRect: sourceRect,
-                    translationCompletion: translationCompletion
+                    sourceRect: sourceRect
                 )
             } else {
                 presentTranslationError("Apple Translation requires iPadOS 18 or later.")
@@ -1208,15 +1209,11 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
     private func presentSystemTranslation(
         text: String,
         sourceView: UIView?,
-        sourceRect: CGRect,
-        translationCompletion: ((String) -> Void)?
+        sourceRect: CGRect
     ) {
         removeSystemTranslationHost()
 
-        let host = PDFSystemTranslationHostController(
-            text: text,
-            replacementAction: translationCompletion
-        )
+        let host = PDFSystemTranslationHostController(text: text)
         host.setOnDismiss { [weak self] in
             self?.removeSystemTranslationHost()
         }
