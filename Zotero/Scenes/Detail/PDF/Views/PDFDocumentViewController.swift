@@ -878,7 +878,14 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
     }
 
     func pdfViewController(_ sender: PDFViewController, menuForText glyphs: GlyphSequence, onPageView pageView: PDFPageView, appearance: EditMenuAppearance, suggestedMenu: UIMenu) -> UIMenu {
-        return filter(
+        let translateAction = UIAction(
+            title: "Translate",
+            image: UIImage(systemName: "character.book.closed")
+        ) { [weak self] _ in
+            self?.translateSelectedText(glyphs.text)
+        }
+
+        let filteredMenu = filter(
             menu: suggestedMenu,
             actionPredicate: { menuId, action -> UIMenuElement? in
                 return replace(action: action, forMenuId: menuId)
@@ -899,6 +906,8 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
                 }
             }
         )
+
+        return filteredMenu.replacingChildren([translateAction] + filteredMenu.children)
 
         func replace(action: UIAction, forMenuId menuId: UIMenu.Identifier) -> UIMenuElement? {
             switch menuId {
@@ -1011,26 +1020,6 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
 
     func pdfViewController(_ pdfController: PDFViewController, didSelectText text: String, with glyphs: [Glyph], at rect: CGRect, on pageView: PDFPageView) {
         parentDelegate?.didSelectText(text)
-    }
-
-    /// Adds a native iOS translation action to PSPDFKit's system text-selection menu.
-    /// The translation implementation is intentionally kept independent from Zotero's desktop
-    /// plugin architecture because Zotero iOS does not support XUL/JavaScript plugins.
-    func pdfViewController(
-        _ pdfController: PDFViewController,
-        menuForText glyphs: GlyphSequence,
-        onPageView pageView: PDFPageView,
-        appearance: EditMenuAppearance,
-        suggestedMenu: UIMenu
-    ) -> UIMenu {
-        let translateAction = UIAction(
-            title: "Translate",
-            image: UIImage(systemName: "character.book.closed")
-        ) { [weak self] _ in
-            self?.translateSelectedText(glyphs.text)
-        }
-
-        return suggestedMenu.prepend([translateAction])
     }
 
     private func translateSelectedText(_ text: String) {
