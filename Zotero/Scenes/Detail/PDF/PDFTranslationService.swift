@@ -220,7 +220,11 @@ final class PDFSystemTranslationHostController: UIHostingController<PDFSystemTra
 }
 
 enum PDFTranslationService {
-    private static let cache = NSCache<NSString, NSString>()
+    private static let cache: NSCache<NSString, NSString> = {
+        let cache = NSCache<NSString, NSString>()
+        cache.countLimit = 128
+        return cache
+    }
     private struct Request: Encodable {
         struct Message: Encodable {
             let role: String
