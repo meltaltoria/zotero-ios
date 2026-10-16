@@ -1224,7 +1224,14 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         addChild(host)
         view.addSubview(host.view)
 
-        let anchor = sourceRect == .zero ? (sourceView ?? view).bounds : sourceRect
+        let anchor: CGRect
+        if let sourceView {
+            anchor = sourceRect == .zero
+                ? view.convert(sourceView.bounds, from: sourceView)
+                : view.convert(sourceRect, from: sourceView)
+        } else {
+            anchor = view.bounds
+        }
         let point = CGPoint(x: anchor.midX, y: anchor.midY)
         host.view.frame = CGRect(x: point.x, y: point.y, width: 2, height: 2)
         host.didMove(toParent: self)
@@ -1237,13 +1244,13 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
 
     private func removeSystemTranslationHost() {
         guard let host = systemTranslationHost else { return }
+        systemTranslationHost = nil
         if #available(iOS 18.0, *) {
             (host as? PDFSystemTranslationHostController)?.cancelTranslation()
         }
         host.willMove(toParent: nil)
         host.view.removeFromSuperview()
         host.removeFromParent()
-        systemTranslationHost = nil
     }
 
     private func presentTranslationError(_ message: String) {
