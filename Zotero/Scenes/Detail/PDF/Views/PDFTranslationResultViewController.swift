@@ -10,21 +10,38 @@ final class PDFTranslationResultViewController: UIViewController {
     private let translatedText: String
 
     private let translationCompletion: ((String) -> Void)?
+    private let noteInsertionCompletion: (() -> Void)?
 
     init(
         originalText: String,
         translatedText: String,
-        translationCompletion: ((String) -> Void)? = nil
+        translationCompletion: ((String) -> Void)? = nil,
+        noteInsertionCompletion: (() -> Void)? = nil
     ) {
         self.originalText = originalText
         self.translatedText = translatedText
         self.translationCompletion = translationCompletion
+        self.noteInsertionCompletion = noteInsertionCompletion
         super.init(nibName: nil, bundle: nil)
         title = "Translation"
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    static func noteHTML(original: String, translated: String) -> String {
+        func escapeHTML(_ text: String) -> String {
+            text
+                .replacingOccurrences(of: "&", with: "&amp;")
+                .replacingOccurrences(of: "<", with: "&lt;")
+                .replacingOccurrences(of: ">", with: "&gt;")
+                .replacingOccurrences(of: """, with: "&quot;")
+                .replacingOccurrences(of: "'", with: "&#39;")
+                .replacingOccurrences(of: "\n", with: "<br>")
+        }
+
+        return "<p><strong>Original</strong><br>\(escapeHTML(original))</p><p><strong>Translation</strong><br>\(escapeHTML(translated))</p>"
     }
 
     override func viewDidLoad() {
@@ -71,6 +88,9 @@ final class PDFTranslationResultViewController: UIViewController {
             self?.dismiss(animated: true)
         }, for: .touchUpInside)
 
+        var buttons = [UIButton]()
+        buttons.append(copyButton)
+
         if let translationCompletion {
             let saveButton = UIButton(type: .system)
             saveButton.setTitle("Add to Annotation", for: .normal)
@@ -78,36 +98,25 @@ final class PDFTranslationResultViewController: UIViewController {
                 translationCompletion(self?.translatedText ?? "")
                 self?.dismiss(animated: true)
             }, for: .touchUpInside)
-
-            let annotationButtons = UIStackView(arrangedSubviews: [copyButton, saveButton, closeButton])
-            annotationButtons.axis = .horizontal
-            annotationButtons.distribution = .fillEqually
-            annotationButtons.spacing = 12
-
-            let stack = UIStackView(arrangedSubviews: [
-                originalLabel,
-                originalView,
-                translationLabel,
-                translationView,
-                annotationButtons
-            ])
-            stack.axis = .vertical
-            stack.spacing = 10
-            stack.translatesAutoresizingMaskIntoConstraints = false
-
-            view.addSubview(stack)
-            NSLayoutConstraint.activate([
-                stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-                stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-                stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-                stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
-                originalView.heightAnchor.constraint(equalToConstant: 120),
-                translationView.heightAnchor.constraint(greaterThanOrEqualToConstant: 220)
-            ])
-            return
+            buttons.append(saveButton)
         }
 
-        let buttons = UIStackView(arrangedSubviews: [copyButton, closeButton])
+        if let noteInsertionCompletion {
+            let noteButton = UIButton(type: .system)
+            noteButton.setTitle("Add to Note", for: .normal)
+            noteButton.addAction(UIAction { [weak self] _ in
+                noteInsertionCompletion()
+                self?.dismiss(animated: true)
+            }, for: .touchUpInside)
+            buttons.append(noteButton)
+        }
+
+        buttons.append(closeButton)
+
+        let buttonStack = UIStackView(arrangedSubviews: buttons)
+        buttonStack.axis = .horizontal
+        buttonStack.distribution = .fillEqually
+        buttonStack.spacing = 12
         buttons.axis = .horizontal
         buttons.distribution = .fillEqually
         buttons.spacing = 12
@@ -117,7 +126,7 @@ final class PDFTranslationResultViewController: UIViewController {
             originalView,
             translationLabel,
             translationView,
-            buttons
+            buttonStack
         ])
         stack.axis = .vertical
         stack.spacing = 10
