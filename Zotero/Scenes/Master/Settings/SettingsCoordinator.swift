@@ -458,6 +458,7 @@ private struct PDFTranslationSettingsView: View {
             Section {
                 Picker("Service", selection: $provider) {
                     Text("Google Translate").tag("google")
+                    Text("Apple Translation").tag("apple")
                     Text("OpenAI-compatible API").tag("openai")
                 }
 
@@ -465,16 +466,16 @@ private struct PDFTranslationSettingsView: View {
                     SecureField("API Key", text: $apiKey)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled(true)
+
+                    TextField("Endpoint", text: $endpoint)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .keyboardType(.URL)
+
+                    TextField("Model", text: $model)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
                 }
-
-                TextField("Endpoint", text: $endpoint)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled(true)
-                    .keyboardType(.URL)
-
-                TextField("Model", text: $model)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled(true)
 
                 TextField("Target language", text: $targetLanguage)
                     .textInputAutocapitalization(.never)
@@ -482,9 +483,16 @@ private struct PDFTranslationSettingsView: View {
             } header: {
                 Text("Translation Service")
             } footer: {
-                Text(provider == "google"
-                     ? "Google Translate uses the web translation endpoint and does not require an API key."
-                     : "OpenAI-compatible mode sends the selected text to the endpoint configured above.")
+                Text({
+                    switch provider {
+                    case "google":
+                        return "Google Translate uses the web translation endpoint and does not require an API key."
+                    case "apple":
+                        return "Apple Translation uses the system translation UI on iPadOS 18 or later."
+                    default:
+                        return "OpenAI-compatible mode sends the selected text to the endpoint configured above."
+                    }
+                }())
             }
 
             Section {
@@ -505,11 +513,13 @@ private struct PDFTranslationSettingsView: View {
                     let normalizedTarget = targetLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
                     let normalizedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
 
-                    guard normalizedProvider == "google" || normalizedProvider == "openai",
-                          !normalizedEndpoint.isEmpty,
-                          !normalizedModel.isEmpty,
+                    guard normalizedProvider == "google" || normalizedProvider == "apple" || normalizedProvider == "openai",
                           !normalizedTarget.isEmpty,
                           !normalizedPrompt.isEmpty else {
+                        return
+                    }
+
+                    if normalizedProvider == "openai" && (normalizedEndpoint.isEmpty || normalizedModel.isEmpty) {
                         return
                     }
 
