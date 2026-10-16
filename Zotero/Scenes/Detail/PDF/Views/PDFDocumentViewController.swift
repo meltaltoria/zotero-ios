@@ -1422,60 +1422,64 @@ private enum PDFTranslationService {
 
     // Google Translate web endpoint implementation adapted from windingwind/zotero-pdf-translate (AGPLv3).
     private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
-        func RL(_ a: Int64, _ b: String) -> Int64 {
-            let plus: Character = "+"
+        func rotate(_ a: UInt32, _ pattern: String) -> UInt32 {
+            let chars = Array(pattern)
             var value = a
-            var index = b.startIndex
-            while index < b.endIndex {
-                let c1 = b[index]
-                let next = b.index(index, offsetBy: 1, limitedBy: b.index(before: b.endIndex))
-                guard let next else { break }
-                let c2 = b[next]
-                let next2 = b.index(next, offsetBy: 1, limitedBy: b.index(before: b.endIndex))
-                guard let next2 else { break }
-                let c3 = b[next2]
-                var shift: Int64
-                if c3 >= Character("a") {
-                    shift = Int64(c3.asciiValue ?? 0) - 87
+            var index = 0
+
+            while index + 2 < chars.count {
+                let c0 = chars[index]
+                let c1 = chars[index + 1]
+                let c2 = chars[index + 2]
+
+                let shift: UInt32
+                if c2 >= Character("a") {
+                    shift = UInt32(c2.asciiValue ?? 0) - 87
                 } else {
-                    shift = Int64(String(c3)) ?? 0
+                    shift = UInt32(String(c2)) ?? 0
                 }
-                let d = c2 == plus ? (value >> shift) : (value << shift)
-                value = c1 == plus ? (value + d) & 0xFFFFFFFF : value ^ d
-                index = b.index(index, offsetBy: 3, limitedBy: b.endIndex) ?? b.endIndex
+
+                let shifted = c1 == "+" ? value >> shift : value << shift
+                value = c0 == "+" ? value &+ shifted : value ^ shifted
+                index += 3
             }
+
             return value
         }
 
         func token(_ input: String) -> String {
-            var bytes: [Int64] = []
+            var bytes: [UInt32] = []
             bytes.reserveCapacity(input.utf8.count)
+
             for scalar in input.unicodeScalars {
-                let m = Int64(scalar.value)
-                if m < 128 {
-                    bytes.append(m)
-                } else if m < 2048 {
-                    bytes.append((m >> 6) | 192)
-                    bytes.append((m & 63) | 128)
+                let value = scalar.value
+                if value < 128 {
+                    bytes.append(value)
+                } else if value < 2048 {
+                    bytes.append((value >> 6) | 192)
+                    bytes.append((value & 63) | 128)
+                } else if value < 65536 {
+                    bytes.append((value >> 12) | 224)
+                    bytes.append(((value >> 6) & 63) | 128)
+                    bytes.append((value & 63) | 128)
                 } else {
-                    bytes.append((m >> 12) | 224)
-                    bytes.append(((m >> 6) & 63) | 128)
-                    bytes.append((m & 63) | 128)
+                    bytes.append((value >> 18) | 240)
+                    bytes.append(((value >> 12) & 63) | 128)
+                    bytes.append(((value >> 6) & 63) | 128)
+                    bytes.append((value & 63) | 128)
                 }
             }
 
-            var value: Int64 = 406644
+            var value: UInt32 = 406644
             for byte in bytes {
-                value += byte
-                value = RL(value, "+-a^+6")
+                value = value &+ byte
+                value = rotate(value, "+-a^+6")
             }
-            value = RL(value, "+-3^+b+-f")
+            value = rotate(value, "+-3^+b+-f")
             value ^= 3293161072
-            if value < 0 {
-                value = (value & 0x7FFFFFFF) + 0x80000000
-            }
-            value %= 1_000_000
-            return "\\(value).\\(value ^ 406644)"
+
+            let first = value % 1_000_000
+            return "\(first).\(first ^ 406644)"
         }
 
         func googleLanguageCode(_ language: String) -> String {
@@ -1559,7 +1563,6 @@ private enum PDFTranslationService {
         }
         return result
     }
-
 
 }
 
