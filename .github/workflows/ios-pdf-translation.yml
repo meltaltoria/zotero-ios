@@ -24,6 +24,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ref || github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build iPad PDF Translation
@@ -79,7 +83,10 @@ jobs:
               -configuration Debug \
               -destination "$DESTINATION" \
               -derivedDataPath build/DerivedData \
-              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_ALLOWED=YES \
+              CODE_SIGN_IDENTITY=- \
+              CODE_SIGNING_REQUIRED=NO \
+              DEVELOPMENT_TEAM= \
               -resultBundlePath build/ci/ZoteroTests.xcresult \
               clean test \
               | tee build/ci/xcodebuild.log
@@ -90,7 +97,10 @@ jobs:
               -configuration Debug \
               -destination "$DESTINATION" \
               -derivedDataPath build/DerivedData \
-              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_ALLOWED=YES \
+              CODE_SIGN_IDENTITY=- \
+              CODE_SIGNING_REQUIRED=NO \
+              DEVELOPMENT_TEAM= \
               clean build \
               | tee build/ci/xcodebuild.log
           fi

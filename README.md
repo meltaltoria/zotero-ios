@@ -21,7 +21,7 @@ The repository includes `.github/workflows/ios-pdf-translation.yml`.
 - The workflow is mirrored on the `master` default branch so GitHub exposes **Run workflow**.
 - The default ref is `feature/pdf-translate-ios`.
 - The build uses GitHub's `macos-26` runner, Xcode 26.5, and an **iPad Pro 13-inch (M5)** simulator on iOS 26.5.
-- The workflow runs `scripts/setup.sh`, resolves Swift packages, and executes `xcodebuild clean test` with code signing disabled.
+- The workflow runs `scripts/setup.sh`, resolves Swift packages, and executes `xcodebuild clean test` with ad-hoc simulator signing. No developer certificate is needed; signing preserves entitlements used by App Groups and background sessions.
 - The Xcode log is uploaded as a workflow artifact even when the build fails.
 
 ### OpenAI-compatible service

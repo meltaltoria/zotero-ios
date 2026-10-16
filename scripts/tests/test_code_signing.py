@@ -75,6 +75,9 @@ class CodeSigningTests(unittest.TestCase):
     def test_signed_build_preserves_identity_and_framework_path(self):
         self.run_scripts("Test Identity", "YES", expected_calls=True)
 
+    def test_simulator_adhoc_signing_preserves_identity(self):
+        self.run_scripts("-", "YES", expected_calls=True)
+
     def test_codesign_failure_fails_the_phase(self):
         self.run_scripts("Test Identity", "YES", expected_calls=True, exit_code=37)
 
