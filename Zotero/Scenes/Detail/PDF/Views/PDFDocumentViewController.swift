@@ -1013,10 +1013,242 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         parentDelegate?.didSelectText(text)
     }
 
+    /// Adds a native iOS translation action to PSPDFKit's system text-selection menu.
+    /// The translation implementation is intentionally kept independent from Zotero's desktop
+    /// plugin architecture because Zotero iOS does not support XUL/JavaScript plugins.
+    func pdfViewController(
+        _ pdfController: PDFViewController,
+        menuForText text: String,
+        onPageView pageView: PDFPageView,
+        appearance: UIAppearance,
+        suggestedMenu: UIMenu
+    ) -> UIMenu {
+        let translateAction = UIAction(
+            title: "Translate",
+            image: UIImage(systemName: "character.book.closed")
+        ) { [weak self] _ in
+            self?.translateSelectedText(text)
+        }
+
+        return UIMenu(
+            title: suggestedMenu.title,
+            image: suggestedMenu.image,
+            identifier: suggestedMenu.identifier,
+            options: suggestedMenu.options,
+            children: [translateAction] + suggestedMenu.children
+        )
+    }
+
+    private func translateSelectedText(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let defaults = UserDefaults.standard
+        let endpoint = defaults.string(forKey: "ZoteroPDFTranslate.endpoint") ?? "https://api.openai.com/v1"
+        let model = defaults.string(forKey: "ZoteroPDFTranslate.model") ?? "gpt-4o-mini"
+        let targetLanguage = defaults.string(forKey: "ZoteroPDFTranslate.targetLanguage") ?? "Chinese"
+        let apiKey = defaults.string(forKey: "ZoteroPDFTranslate.apiKey") ?? ""
+
+        if apiKey.isEmpty {
+            presentTranslationSettings(initialText: trimmed, endpoint: endpoint, model: model, targetLanguage: targetLanguage)
+            return
+        }
+
+        let alert = UIAlertController(title: "Translating…", message: "Please wait.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+
+        Task { [weak self, weak alert] in
+            do {
+                let translated = try await PDFTranslationService.translate(
+                    text: trimmed,
+                    endpoint: endpoint,
+                    model: model,
+                    targetLanguage: targetLanguage,
+                    apiKey: apiKey
+                )
+                await MainActor.run {
+                    alert?.dismiss(animated: true) {
+                        let result = UIAlertController(
+                            title: "Translation",
+                            message: translated,
+                            preferredStyle: .alert
+                        )
+                        result.addAction(UIAlertAction(title: "Copy", style: .default) { _ in
+                            UIPasteboard.general.string = translated
+                        })
+                        result.addAction(UIAlertAction(title: "Done", style: .cancel))
+                        self?.present(result, animated: true)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    alert?.dismiss(animated: true) {
+                        let result = UIAlertController(
+                            title: "Translation failed",
+                            message: error.localizedDescription,
+                            preferredStyle: .alert
+                        )
+                        result.addAction(UIAlertAction(title: "OK", style: .default))
+                        self?.present(result, animated: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func presentTranslationSettings(
+        initialText: String,
+        endpoint: String,
+        model: String,
+        targetLanguage: String
+    ) {
+        let alert = UIAlertController(
+            title: "PDF Translation Setup",
+            message: "Configure an OpenAI-compatible translation endpoint. Your API key is stored locally in this first version.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "API Key"
+            field.text = UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.apiKey")
+            field.isSecureTextEntry = true
+        }
+        alert.addTextField { field in
+            field.placeholder = "Endpoint"
+            field.text = endpoint
+            field.keyboardType = .URL
+        }
+        alert.addTextField { field in
+            field.placeholder = "Model"
+            field.text = model
+        }
+        alert.addTextField { field in
+            field.placeholder = "Target language"
+            field.text = targetLanguage
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Save & Translate", style: .default) { [weak self, weak alert] _ in
+            guard let fields = alert?.textFields,
+                  let key = fields.indices.contains(0) ? fields[0].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let endpoint = fields.indices.contains(1) ? fields[1].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let model = fields.indices.contains(2) ? fields[2].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  let target = fields.indices.contains(3) ? fields[3].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !key.isEmpty, !endpoint.isEmpty, !model.isEmpty, !target.isEmpty else {
+                return
+            }
+
+            let defaults = UserDefaults.standard
+            defaults.set(key, forKey: "ZoteroPDFTranslate.apiKey")
+            defaults.set(endpoint, forKey: "ZoteroPDFTranslate.endpoint")
+            defaults.set(model, forKey: "ZoteroPDFTranslate.model")
+            defaults.set(target, forKey: "ZoteroPDFTranslate.targetLanguage")
+
+            self?.translateSelectedText(initialText)
+        })
+        present(alert, animated: true)
+    }
+
+
     func pdfViewController(_ pdfController: PDFViewController, didFinishRenderTaskFor pageView: PDFPageView, error: (any Error)?) {
         if let error {
             DDLogError("PDFDocumentViewController: PDFViewController didFinishRenderTaskFor \(pageView) with error - \(error)")
         }
+    }
+}
+
+
+private enum PDFTranslationService {
+    private struct Request: Encodable {
+        struct Message: Encodable {
+            let role: String
+            let content: String
+        }
+        let model: String
+        let messages: [Message]
+        let temperature: Double
+    }
+
+    private struct Response: Decodable {
+        struct Choice: Decodable {
+            struct Message: Decodable {
+                let content: String
+            }
+            let message: Message
+        }
+        let choices: [Choice]
+    }
+
+    static func translate(
+        text: String,
+        endpoint: String,
+        model: String,
+        targetLanguage: String,
+        apiKey: String
+    ) async throws -> String {
+        var base = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        while base.hasSuffix("/") {
+            base.removeLast()
+        }
+        let urlString = base.hasSuffix("/chat/completions") ? base : "\(base)/chat/completions"
+        guard let url = URL(string: urlString) else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Invalid translation endpoint."]
+            )
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 60
+
+        let systemPrompt = """
+        You are an academic translator. Translate the supplied scientific paper excerpt into \(targetLanguage).
+        Preserve equations, symbols, chemical formulas, material names, abbreviations, citations, and technical terminology.
+        Do not add explanations or omit information. Return only the translation.
+        """
+
+        let body = Request(
+            model: model,
+            messages: [
+                .init(role: "system", content: systemPrompt),
+                .init(role: "user", content: text)
+            ],
+            temperature: 0
+        )
+
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "The translation service returned an invalid response."]
+            )
+        }
+
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let serverMessage = String(data: data, encoding: .utf8) ?? "HTTP \(httpResponse.statusCode)"
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: httpResponse.statusCode,
+                userInfo: [NSLocalizedDescriptionKey: "Translation API error: \(serverMessage)"]
+            )
+        }
+
+        let decoded = try JSONDecoder().decode(Response.self, from: data)
+        guard let content = decoded.choices.first?.message.content.trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 3,
+                userInfo: [NSLocalizedDescriptionKey: "The translation service returned no text."]
+            )
+        }
+        return content
     }
 }
 
