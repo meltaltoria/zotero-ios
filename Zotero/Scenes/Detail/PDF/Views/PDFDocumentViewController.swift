@@ -8,6 +8,7 @@
 
 import UIKit
 import Combine
+import Security
 
 import CocoaLumberjackSwift
 import PSPDFKit
@@ -1027,10 +1028,10 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         guard !trimmed.isEmpty else { return }
 
         let defaults = UserDefaults.standard
-        let endpoint = defaults.string(forKey: "ZoteroPDFTranslate.endpoint") ?? "https://api.openai.com/v1"
-        let model = defaults.string(forKey: "ZoteroPDFTranslate.model") ?? "gpt-4o-mini"
-        let targetLanguage = defaults.string(forKey: "ZoteroPDFTranslate.targetLanguage") ?? "Chinese"
-        let apiKey = defaults.string(forKey: "ZoteroPDFTranslate.apiKey") ?? ""
+        let endpoint = PDFTranslationSettingsStore.endpoint
+        let model = PDFTranslationSettingsStore.model
+        let targetLanguage = PDFTranslationSettingsStore.targetLanguage
+        let apiKey = PDFTranslationSettingsStore.apiKey
 
         if apiKey.isEmpty {
             presentTranslationSettings(initialText: trimmed, endpoint: endpoint, model: model, targetLanguage: targetLanguage)
@@ -1093,7 +1094,7 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         )
         alert.addTextField { field in
             field.placeholder = "API Key"
-            field.text = UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.apiKey")
+            field.text = PDFTranslationSettingsStore.apiKey
             field.isSecureTextEntry = true
         }
         alert.addTextField { field in
@@ -1119,7 +1120,7 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
             guard !key.isEmpty, !endpoint.isEmpty, !model.isEmpty, !target.isEmpty else { return }
 
             let defaults = UserDefaults.standard
-            defaults.set(key, forKey: "ZoteroPDFTranslate.apiKey")
+            try? PDFTranslationSettingsStore.setAPIKey(key)
             defaults.set(endpoint, forKey: "ZoteroPDFTranslate.endpoint")
             defaults.set(model, forKey: "ZoteroPDFTranslate.model")
             defaults.set(target, forKey: "ZoteroPDFTranslate.targetLanguage")
@@ -1137,6 +1138,139 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
     }
 }
 
+
+
+private enum PDFTranslationSettingsStore {
+    private static let service = "org.zotero.ios.Zotero.pdf-translation"
+    private static let account = "api-key"
+
+    static var endpoint: String {
+        get {
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.endpoint")
+                ?? "https://api.openai.com/v1"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.endpoint")
+        }
+    }
+
+    static var model: String {
+        get {
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.model")
+                ?? "gpt-4o-mini"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.model")
+        }
+    }
+
+    static var targetLanguage: String {
+        get {
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.targetLanguage")
+                ?? "Chinese"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.targetLanguage")
+        }
+    }
+
+    static var prompt: String {
+        get {
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.prompt")
+                ?? """
+                You are an academic translator. Translate the supplied scientific paper excerpt into Chinese.
+                Preserve equations, symbols, chemical formulas, material names, abbreviations, citations, and technical terminology.
+                For battery and materials-science terminology, prefer established Chinese academic terminology.
+                Do not add explanations or omit information. Return only the translation.
+                """
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.prompt")
+        }
+    }
+
+    static var apiKey: String {
+        if let value = readKeychain(), !value.isEmpty {
+            return value
+        }
+
+        // One-time migration from the first MVP, which stored the key in UserDefaults.
+        if let legacy = UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.apiKey"),
+           !legacy.isEmpty {
+            try? setAPIKey(legacy)
+            UserDefaults.standard.removeObject(forKey: "ZoteroPDFTranslate.apiKey")
+            return legacy
+        }
+
+        return ""
+    }
+
+    static func setAPIKey(_ value: String) throws {
+        let data = Data(value.utf8)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status == errSecDuplicateItem {
+            let lookup: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: service,
+                kSecAttrAccount as String: account
+            ]
+            let update: [String: Any] = [
+                kSecValueData as String: data,
+                kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+            ]
+            let updateStatus = SecItemUpdate(lookup as CFDictionary, update as CFDictionary)
+            guard updateStatus == errSecSuccess else {
+                throw NSError(
+                    domain: "ZoteroPDFTranslate.Keychain",
+                    code: Int(updateStatus),
+                    userInfo: [NSLocalizedDescriptionKey: "Unable to update the translation API key."]
+                )
+            }
+        } else if status != errSecSuccess {
+            throw NSError(
+                domain: "ZoteroPDFTranslate.Keychain",
+                code: Int(status),
+                userInfo: [NSLocalizedDescriptionKey: "Unable to store the translation API key securely."]
+            )
+        }
+    }
+
+    static func deleteAPIKey() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account
+        ]
+        SecItemDelete(query as CFDictionary)
+        UserDefaults.standard.removeObject(forKey: "ZoteroPDFTranslate.apiKey")
+    }
+
+    private static func readKeychain() -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        guard status == errSecSuccess,
+              let data = result as? Data else {
+            return nil
+        }
+        return String(data: data, encoding: .utf8)
+    }
+}
 
 private enum PDFTranslationService {
     private struct Request: Encodable {
@@ -1185,11 +1319,10 @@ private enum PDFTranslationService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 60
 
-        let systemPrompt = """
-        You are an academic translator. Translate the supplied scientific paper excerpt into \(targetLanguage).
-        Preserve equations, symbols, chemical formulas, material names, abbreviations, citations, and technical terminology.
-        Do not add explanations or omit information. Return only the translation.
-        """
+        let systemPrompt = PDFTranslationSettingsStore.prompt.replacingOccurrences(
+            of: "{{targetLanguage}}",
+            with: targetLanguage
+        )
 
         let body = Request(
             model: model,
