@@ -246,16 +246,20 @@ enum PDFTranslationService {
         endpoint: String,
         model: String,
         targetLanguage: String,
-        apiKey: String
+        apiKey: String,
+        session: URLSession = .shared
     ) async throws -> String {
-        let cacheKey = [
+        try Task.checkCancellation()
+        let prompt = PDFTranslationSettingsStore.prompt
+        let cacheFields = [
             provider,
             endpoint,
             model,
             targetLanguage,
-            PDFTranslationSettingsStore.prompt,
+            prompt,
             text
-        ].joined(separator: "|") as NSString
+        ]
+        let cacheKey = try JSONEncoder().encode(cacheFields).base64EncodedString() as NSString
 
         if let cached = cache.object(forKey: cacheKey) {
             return cached as String
@@ -264,7 +268,7 @@ enum PDFTranslationService {
         let result: String
         switch provider {
         case "google":
-            result = try await translateWithGoogle(text: text, targetLanguage: targetLanguage)
+            result = try await translateWithGoogle(text: text, targetLanguage: targetLanguage, session: session)
 
         case "openai":
             result = try await translateWithOpenAICompatible(
@@ -272,7 +276,9 @@ enum PDFTranslationService {
                 endpoint: endpoint,
                 model: model,
                 targetLanguage: targetLanguage,
-                apiKey: apiKey
+                apiKey: apiKey,
+                prompt: prompt,
+                session: session
             )
 
         default:
@@ -283,6 +289,7 @@ enum PDFTranslationService {
             )
         }
 
+        try Task.checkCancellation()
         cache.setObject(result as NSString, forKey: cacheKey)
         return result
     }
@@ -292,7 +299,9 @@ enum PDFTranslationService {
         endpoint: String,
         model: String,
         targetLanguage: String,
-        apiKey: String
+        apiKey: String,
+        prompt: String,
+        session: URLSession
     ) async throws -> String {
         var base = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") {
@@ -314,7 +323,7 @@ enum PDFTranslationService {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 60
 
-        let systemPrompt = PDFTranslationSettingsStore.prompt.replacingOccurrences(
+        let systemPrompt = prompt.replacingOccurrences(
             of: "{{targetLanguage}}",
             with: targetLanguage
         )
@@ -328,7 +337,7 @@ enum PDFTranslationService {
         )
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw NSError(
                 domain: "ZoteroPDFTranslate",
@@ -419,7 +428,8 @@ enum PDFTranslationService {
         return "\(first).\(first ^ 406644)"
     }
 
-    private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
+    private static func translateWithGoogle(text: String, targetLanguage: String, session: URLSession) async throws -> String {
+        try Task.checkCancellation()
         let maxChunkLength = 1800
         if text.count > maxChunkLength {
             let chunks = splitGoogleText(text, maxLength: maxChunkLength)
@@ -428,7 +438,7 @@ enum PDFTranslationService {
 
             for chunk in chunks {
                 translatedChunks.append(
-                    try await translateWithGoogle(text: chunk, targetLanguage: targetLanguage)
+                    try await translateWithGoogle(text: chunk, targetLanguage: targetLanguage, session: session)
                 )
             }
             return translatedChunks.joined(separator: "\n\n")
@@ -489,7 +499,7 @@ enum PDFTranslationService {
         request.timeoutInterval = 30
         request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse,
               (200..<300).contains(httpResponse.statusCode) else {
             throw NSError(

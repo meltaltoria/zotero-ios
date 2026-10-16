@@ -55,6 +55,8 @@ final class PDFDocumentViewController: UIViewController {
     // to the page that becomes visible after the scroll. `nil` means there's no pending zoom to restore.
     private var pendingCornerTapZoomScale: CGFloat?
     private var systemTranslationHost: UIViewController?
+    private var translationTask: Task<Void, Never>?
+    private var translationRequestID: UUID?
     var currentPage: UInt {
         return pdfController?.pageIndex ?? 0
     }
@@ -126,6 +128,7 @@ final class PDFDocumentViewController: UIViewController {
     }
 
     deinit {
+        translationTask?.cancel()
         disableAnnotationTools()
         pdfController?.annotationStateManager.remove(self)
         DDLogInfo("PDFDocumentViewController deinitialized")
@@ -1096,11 +1099,19 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
             return
         }
 
+        translationTask?.cancel()
+        let requestID = UUID()
+        translationRequestID = requestID
+
         let alert = UIAlertController(title: "Translating…", message: "Please wait.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.translationRequestID = nil
+            self?.translationTask?.cancel()
+            self?.translationTask = nil
+        })
         present(alert, animated: true)
 
-        Task { [weak self, weak alert] in
+        translationTask = Task { [weak self, weak alert] in
             do {
                 let translated = try await PDFTranslationService.translate(
                     text: trimmed,
@@ -1110,8 +1121,12 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
                     targetLanguage: targetLanguage,
                     apiKey: apiKey
                 )
+                try Task.checkCancellation()
                 await MainActor.run {
+                    guard self?.translationRequestID == requestID else { return }
                     alert?.dismiss(animated: true) {
+                        guard self?.translationRequestID == requestID else { return }
+                        self?.translationTask = nil
                         self?.presentTranslationResult(
                             original: trimmed,
                             translated: translated,
@@ -1122,8 +1137,12 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
                     }
                 }
             } catch {
+                guard !Task.isCancelled else { return }
                 await MainActor.run {
+                    guard self?.translationRequestID == requestID else { return }
                     alert?.dismiss(animated: true) {
+                        guard self?.translationRequestID == requestID else { return }
+                        self?.translationTask = nil
                         let result = UIAlertController(
                             title: "Translation failed",
                             message: error.localizedDescription,
