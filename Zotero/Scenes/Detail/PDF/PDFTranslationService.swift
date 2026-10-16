@@ -151,7 +151,7 @@ enum PDFTranslationSettingsStore {
     }
 }
 
-private enum PDFTranslationService {
+enum PDFTranslationService {
     private struct Request: Encodable {
         struct Message: Encodable {
             let role: String
