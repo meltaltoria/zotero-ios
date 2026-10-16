@@ -334,76 +334,33 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
     }
 
     func showTranslationSettings() {
-        let controller = UIAlertController(
-            title: "PDF Translation",
-            message: "Configure the translation service used by the PDF reader.",
-            preferredStyle: .alert
-        )
-
-        controller.addTextField { field in
-            field.placeholder = "Service: google or openai"
-            field.text = PDFTranslationSettingsStore.provider
-        }
-        controller.addTextField { field in
-            field.placeholder = "API Key (required for openai)"
-            field.text = PDFTranslationSettingsStore.apiKey
-            field.isSecureTextEntry = true
-        }
-        controller.addTextField { field in
-            field.placeholder = "Endpoint"
-            field.text = PDFTranslationSettingsStore.endpoint
-            field.keyboardType = .URL
-        }
-        controller.addTextField { field in
-            field.placeholder = "Model"
-            field.text = PDFTranslationSettingsStore.model
-        }
-        controller.addTextField { field in
-            field.placeholder = "Target language"
-            field.text = PDFTranslationSettingsStore.targetLanguage
-        }
-        controller.addTextField { field in
-            field.placeholder = "Prompt (optional)"
-            field.text = PDFTranslationSettingsStore.prompt
-        }
-
-        controller.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        controller.addAction(UIAlertAction(title: "Clear API Key", style: .destructive) { _ in
-            PDFTranslationSettingsStore.deleteAPIKey()
-        })
-        controller.addAction(UIAlertAction(title: "Save", style: .default) { _ in
-            guard let fields = controller.textFields, fields.count >= 6 else { return }
-
-            let provider = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "google"
-            let key = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let endpoint = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let model = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let target = fields[4].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let prompt = fields[5].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-
-            guard provider == "google" || provider == "openai" else { return }
-
-            PDFTranslationSettingsStore.provider = provider
-            if key.isEmpty {
-                PDFTranslationSettingsStore.deleteAPIKey()
-            } else {
-                try? PDFTranslationSettingsStore.setAPIKey(key)
-            }
-            if !endpoint.isEmpty {
+        let view = PDFTranslationSettingsView(
+            provider: PDFTranslationSettingsStore.provider,
+            apiKey: PDFTranslationSettingsStore.apiKey,
+            endpoint: PDFTranslationSettingsStore.endpoint,
+            model: PDFTranslationSettingsStore.model,
+            targetLanguage: PDFTranslationSettingsStore.targetLanguage,
+            prompt: PDFTranslationSettingsStore.prompt,
+            saveAction: { provider, apiKey, endpoint, model, targetLanguage, prompt in
+                PDFTranslationSettingsStore.provider = provider
+                if apiKey.isEmpty {
+                    PDFTranslationSettingsStore.deleteAPIKey()
+                } else {
+                    try? PDFTranslationSettingsStore.setAPIKey(apiKey)
+                }
                 PDFTranslationSettingsStore.endpoint = endpoint
-            }
-            if !model.isEmpty {
                 PDFTranslationSettingsStore.model = model
-            }
-            if !target.isEmpty {
-                PDFTranslationSettingsStore.targetLanguage = target
-            }
-            if !prompt.isEmpty {
+                PDFTranslationSettingsStore.targetLanguage = targetLanguage
                 PDFTranslationSettingsStore.prompt = prompt
+            },
+            clearAPIKeyAction: {
+                PDFTranslationSettingsStore.deleteAPIKey()
+            },
+            closeAction: { [weak self] in
+                self?.navigationController?.popViewController(animated: true)
             }
-        })
-
-        self.navigationController?.present(controller, animated: true)
+        )
+        self.pushDefaultSize(view: view)
     }
     
     func showAnnotationToolsSettings() {
@@ -458,6 +415,125 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
         controller.transitioningDelegate = self.transitionDelegate
         self.transitionDelegate = nil
         self.navigationController?.present(controller, animated: true, completion: nil)
+    }
+}
+
+
+private struct PDFTranslationSettingsView: View {
+    @State private var provider: String
+    @State private var apiKey: String
+    @State private var endpoint: String
+    @State private var model: String
+    @State private var targetLanguage: String
+    @State private var prompt: String
+
+    let saveAction: (String, String, String, String, String, String) -> Void
+    let clearAPIKeyAction: () -> Void
+    let closeAction: () -> Void
+
+    init(
+        provider: String,
+        apiKey: String,
+        endpoint: String,
+        model: String,
+        targetLanguage: String,
+        prompt: String,
+        saveAction: @escaping (String, String, String, String, String, String) -> Void,
+        clearAPIKeyAction: @escaping () -> Void,
+        closeAction: @escaping () -> Void
+    ) {
+        _provider = State(initialValue: provider)
+        _apiKey = State(initialValue: apiKey)
+        _endpoint = State(initialValue: endpoint)
+        _model = State(initialValue: model)
+        _targetLanguage = State(initialValue: targetLanguage)
+        _prompt = State(initialValue: prompt)
+        self.saveAction = saveAction
+        self.clearAPIKeyAction = clearAPIKeyAction
+        self.closeAction = closeAction
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Service", selection: $provider) {
+                    Text("Google Translate").tag("google")
+                    Text("OpenAI-compatible API").tag("openai")
+                }
+
+                if provider == "openai" {
+                    SecureField("API Key", text: $apiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                }
+
+                TextField("Endpoint", text: $endpoint)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+                    .keyboardType(.URL)
+
+                TextField("Model", text: $model)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+
+                TextField("Target language", text: $targetLanguage)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+            } header: {
+                Text("Translation Service")
+            } footer: {
+                Text(provider == "google"
+                     ? "Google Translate uses the web translation endpoint and does not require an API key."
+                     : "OpenAI-compatible mode sends the selected text to the endpoint configured above.")
+            }
+
+            Section {
+                TextEditor(text: $prompt)
+                    .frame(minHeight: 180)
+                    .font(.body)
+            } header: {
+                Text("Academic Prompt")
+            } footer: {
+                Text("Use {{targetLanguage}} where the target language should be inserted.")
+            }
+
+            Section {
+                Button("Save") {
+                    let normalizedProvider = provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let normalizedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedTarget = targetLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    guard normalizedProvider == "google" || normalizedProvider == "openai",
+                          !normalizedEndpoint.isEmpty,
+                          !normalizedModel.isEmpty,
+                          !normalizedTarget.isEmpty,
+                          !normalizedPrompt.isEmpty else {
+                        return
+                    }
+
+                    saveAction(
+                        normalizedProvider,
+                        apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+                        normalizedEndpoint,
+                        normalizedModel,
+                        normalizedTarget,
+                        normalizedPrompt
+                    )
+                    closeAction()
+                }
+
+                if !apiKey.isEmpty {
+                    Button("Clear API Key", role: .destructive) {
+                        apiKey = ""
+                        clearAPIKeyAction()
+                    }
+                }
+            }
+        }
+        .navigationBarTitle("PDF Translation", displayMode: .inline)
+        .navigationBarItems(leading: Button("Close", action: closeAction))
     }
 }
 
