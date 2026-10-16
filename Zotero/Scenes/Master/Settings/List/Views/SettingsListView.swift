@@ -37,6 +37,12 @@ struct SettingsListView: View {
                 })
 
                 Button(action: {
+                    self.coordinatorDelegate?.showTranslationSettings()
+                }, label: {
+                    SettingsListButtonRow(text: "Translation", detailText: nil, enabled: true)
+                })
+
+                Button(action: {
                     self.coordinatorDelegate?.showCitationSettings()
                 }, label: {
                     SettingsListButtonRow(text: L10n.Settings.Cite.title, detailText: nil, enabled: true)
