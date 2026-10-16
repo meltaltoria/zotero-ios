@@ -1281,13 +1281,16 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         translationCompletion: ((String) -> Void)? = nil
     ) {
         let noteInsertionCompletion: (() -> Void)?
-        if let editor = NoteEditorViewController.activeEditor {
+        if let editor = NoteEditorViewController.activeEditor,
+           editor.canInsertTranslation(in: view.window?.windowScene) {
             let html = PDFTranslationResultViewController.noteHTML(
                 original: original,
                 translated: translated
             )
-            noteInsertionCompletion = { [weak editor] in
-                editor?.insertHTMLAtCurrentSelection(html)
+            noteInsertionCompletion = { [weak self, weak editor] in
+                guard let self, let editor,
+                      editor.canInsertTranslation(in: self.view.window?.windowScene) else { return }
+                editor.insertHTMLAtCurrentSelection(html)
             }
         } else {
             noteInsertionCompletion = nil

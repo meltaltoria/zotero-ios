@@ -342,12 +342,12 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
             targetLanguage: PDFTranslationSettingsStore.targetLanguage,
             prompt: PDFTranslationSettingsStore.prompt,
             saveAction: { provider, apiKey, endpoint, model, targetLanguage, prompt in
-                PDFTranslationSettingsStore.provider = provider
                 if apiKey.isEmpty {
                     PDFTranslationSettingsStore.deleteAPIKey()
                 } else {
-                    try? PDFTranslationSettingsStore.setAPIKey(apiKey)
+                    try PDFTranslationSettingsStore.setAPIKey(apiKey)
                 }
+                PDFTranslationSettingsStore.provider = provider
                 PDFTranslationSettingsStore.endpoint = endpoint
                 PDFTranslationSettingsStore.model = model
                 PDFTranslationSettingsStore.targetLanguage = targetLanguage
@@ -425,8 +425,9 @@ private struct PDFTranslationSettingsView: View {
     @State private var model: String
     @State private var targetLanguage: String
     @State private var prompt: String
+    @State private var saveError: String?
 
-    let saveAction: (String, String, String, String, String, String) -> Void
+    let saveAction: (String, String, String, String, String, String) throws -> Void
     let clearAPIKeyAction: () -> Void
     let closeAction: () -> Void
 
@@ -437,7 +438,7 @@ private struct PDFTranslationSettingsView: View {
         model: String,
         targetLanguage: String,
         prompt: String,
-        saveAction: @escaping (String, String, String, String, String, String) -> Void,
+        saveAction: @escaping (String, String, String, String, String, String) throws -> Void,
         clearAPIKeyAction: @escaping () -> Void,
         closeAction: @escaping () -> Void
     ) {
@@ -519,22 +520,28 @@ private struct PDFTranslationSettingsView: View {
                     guard normalizedProvider == "google" || normalizedProvider == "apple" || normalizedProvider == "openai",
                           !normalizedTarget.isEmpty,
                           !normalizedPrompt.isEmpty else {
+                        saveError = "Choose a translation service and enter a target language and prompt."
                         return
                     }
 
                     if normalizedProvider == "openai" && (normalizedEndpoint.isEmpty || normalizedModel.isEmpty) {
+                        saveError = "Enter an endpoint and model for the OpenAI-compatible service."
                         return
                     }
 
-                    saveAction(
-                        normalizedProvider,
-                        apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
-                        normalizedEndpoint,
-                        normalizedModel,
-                        normalizedTarget,
-                        normalizedPrompt
-                    )
-                    closeAction()
+                    do {
+                        try saveAction(
+                            normalizedProvider,
+                            apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+                            normalizedEndpoint,
+                            normalizedModel,
+                            normalizedTarget,
+                            normalizedPrompt
+                        )
+                        closeAction()
+                    } catch {
+                        saveError = error.localizedDescription
+                    }
                 }
 
                 if !apiKey.isEmpty {
@@ -547,6 +554,14 @@ private struct PDFTranslationSettingsView: View {
         }
         .navigationBarTitle("PDF Translation", displayMode: .inline)
         .navigationBarItems(leading: Button("Close", action: closeAction))
+        .alert("Unable to save translation settings", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
     }
 }
 

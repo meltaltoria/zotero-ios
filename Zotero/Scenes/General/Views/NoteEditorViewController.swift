@@ -63,7 +63,6 @@ final class NoteEditorViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        Self.activeEditor = self
 
         switch viewModel.state.kind {
         case .edit(let key), .readOnly(let key):
@@ -105,6 +104,16 @@ final class NoteEditorViewController: UIViewController {
             }
             webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
         }
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        Self.activeEditor = self
+    }
+
+    func canInsertTranslation(in scene: UIWindowScene?) -> Bool {
+        guard let scene, !viewModel.state.kind.readOnly else { return false }
+        return viewIfLoaded?.window?.windowScene === scene
     }
 
     // MARK: - Actions

@@ -75,8 +75,12 @@ enum PDFTranslationSettingsStore {
         // One-time migration from the first MVP, which stored the key in UserDefaults.
         if let legacy = UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.apiKey"),
            !legacy.isEmpty {
-            try? setAPIKey(legacy)
-            UserDefaults.standard.removeObject(forKey: "ZoteroPDFTranslate.apiKey")
+            do {
+                try setAPIKey(legacy)
+                UserDefaults.standard.removeObject(forKey: "ZoteroPDFTranslate.apiKey")
+            } catch {
+                // Retain the original until Keychain becomes available so migration can be retried.
+            }
             return legacy
         }
 
