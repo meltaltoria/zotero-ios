@@ -1122,14 +1122,12 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Save & Translate", style: .default) { [weak self, weak alert] _ in
-            guard let fields = alert?.textFields,
-                  let key = fields.indices.contains(0) ? fields[0].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let endpoint = fields.indices.contains(1) ? fields[1].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let model = fields.indices.contains(2) ? fields[2].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  let target = fields.indices.contains(3) ? fields[3].text : nil?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !key.isEmpty, !endpoint.isEmpty, !model.isEmpty, !target.isEmpty else {
-                return
-            }
+            guard let fields = alert?.textFields, fields.count >= 4 else { return }
+            let key = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let endpoint = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let model = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let target = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !key.isEmpty, !endpoint.isEmpty, !model.isEmpty, !target.isEmpty else { return }
 
             let defaults = UserDefaults.standard
             defaults.set(key, forKey: "ZoteroPDFTranslate.apiKey")
