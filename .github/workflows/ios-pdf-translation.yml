@@ -77,10 +77,11 @@ jobs:
           DESTINATION="platform=iOS Simulator,OS=26.5,name=iPad Pro 13-inch (M5)"
 
           if [ "$RUN_TESTS" = "true" ]; then
+            # Test enables TESTING, including the foreground session used by network stubs.
             xcodebuild \
               -project Zotero.xcodeproj \
               -scheme Zotero \
-              -configuration Debug \
+              -configuration Test \
               -destination "$DESTINATION" \
               -derivedDataPath build/DerivedData \
               CODE_SIGNING_ALLOWED=YES \
