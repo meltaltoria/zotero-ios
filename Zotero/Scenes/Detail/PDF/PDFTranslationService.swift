@@ -170,15 +170,13 @@ final class PDFSystemTranslationBridge: ObservableObject {
 struct PDFSystemTranslationView: View {
     @ObservedObject var bridge: PDFSystemTranslationBridge
     let text: String
-    let replacementAction: ((String) -> Void)?
 
     var body: some View {
         Color.clear
             .frame(width: 2, height: 2)
             .translationPresentation(
                 isPresented: $bridge.isPresented,
-                text: text,
-                replacementAction: replacementAction
+                text: text
             )
             .onChange(of: bridge.isPresented) { isPresented in
                 if !isPresented {
@@ -192,14 +190,13 @@ struct PDFSystemTranslationView: View {
 final class PDFSystemTranslationHostController: UIHostingController<PDFSystemTranslationView> {
     private let bridge: PDFSystemTranslationBridge
 
-    init(text: String, replacementAction: ((String) -> Void)? = nil) {
+    init(text: String) {
         let bridge = PDFSystemTranslationBridge()
         self.bridge = bridge
         super.init(
             rootView: PDFSystemTranslationView(
                 bridge: bridge,
-                text: text,
-                replacementAction: replacementAction
+                text: text
             )
         )
         view.backgroundColor = .clear
