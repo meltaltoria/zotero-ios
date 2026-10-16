@@ -14,6 +14,16 @@ This fork contains an experimental native PDF translation integration for iOS/iP
 6. When a Zotero note editor is active, the result also offers **Add to Note**, inserting the original text and translation through the bundled ProseMirror editor.
 7. Translation settings are available from Zotero Settings → Translation.
 
+### CI / automated build
+
+The repository includes `.github/workflows/ios-pdf-translation.yml`.
+
+- The workflow is mirrored on the `master` default branch so GitHub exposes **Run workflow**.
+- The default ref is `feature/pdf-translate-ios`.
+- The build uses GitHub's `macos-26` runner, Xcode 26.5, and an **iPad Pro 13-inch (M5)** simulator on iOS 26.5.
+- The workflow runs `scripts/setup.sh`, resolves Swift packages, and executes `xcodebuild clean test` with code signing disabled.
+- The Xcode log is uploaded as a workflow artifact even when the build fails.
+
 ### OpenAI-compatible service
 
 The Translation settings support an OpenAI-compatible `/chat/completions` endpoint. API keys are stored in the iOS Keychain. The default academic prompt preserves equations, chemical formulas, material names, abbreviations, citations, and technical terminology. Use `{{targetLanguage}}` in a custom prompt to insert the configured target language.
