@@ -883,7 +883,8 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
             title: "Translate",
             image: UIImage(systemName: "character.book.closed")
         ) { [weak self] _ in
-            self?.translateSelectedText(glyphs.text)
+            let rect = pageView.convert(glyphs.boundingBox, from: pageView.pdfCoordinateSpace)
+            self?.translateSelectedText(glyphs.text, sourceView: pageView, sourceRect: rect)
         }
 
         let filteredMenu = filter(
@@ -1023,7 +1024,7 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         parentDelegate?.didSelectText(text)
     }
 
-    private func translateSelectedText(_ text: String) {
+    private func translateSelectedText(_ text: String, sourceView: UIView? = nil, sourceRect: CGRect = .zero) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -1034,7 +1035,14 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         let apiKey = PDFTranslationSettingsStore.apiKey
 
         if provider == "openai" && apiKey.isEmpty {
-            presentTranslationSettings(initialText: trimmed, endpoint: endpoint, model: model, targetLanguage: targetLanguage)
+            presentTranslationSettings(
+                initialText: trimmed,
+                endpoint: endpoint,
+                model: model,
+                targetLanguage: targetLanguage,
+                sourceView: sourceView,
+                sourceRect: sourceRect
+            )
             return
         }
 
@@ -1054,16 +1062,12 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
                 )
                 await MainActor.run {
                     alert?.dismiss(animated: true) {
-                        let result = UIAlertController(
-                            title: "Translation",
-                            message: translated,
-                            preferredStyle: .alert
+                        self?.presentTranslationResult(
+                            original: trimmed,
+                            translated: translated,
+                            sourceView: sourceView,
+                            sourceRect: sourceRect
                         )
-                        result.addAction(UIAlertAction(title: "Copy", style: .default) { _ in
-                            UIPasteboard.general.string = translated
-                        })
-                        result.addAction(UIAlertAction(title: "Done", style: .cancel))
-                        self?.present(result, animated: true)
                     }
                 }
             } catch {
@@ -1086,7 +1090,9 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         initialText: String,
         endpoint: String,
         model: String,
-        targetLanguage: String
+        targetLanguage: String,
+        sourceView: UIView?,
+        sourceRect: CGRect
     ) {
         let alert = UIAlertController(
             title: "PDF Translation Setup",
@@ -1135,11 +1141,36 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
             PDFTranslationSettingsStore.model = model
             PDFTranslationSettingsStore.targetLanguage = target
 
-            self?.translateSelectedText(initialText)
+            self?.translateSelectedText(initialText, sourceView: sourceView, sourceRect: sourceRect)
         })
         present(alert, animated: true)
     }
 
+
+
+    private func presentTranslationResult(
+        original: String,
+        translated: String,
+        sourceView: UIView?,
+        sourceRect: CGRect
+    ) {
+        let controller = PDFTranslationResultViewController(
+            originalText: original,
+            translatedText: translated
+        )
+
+        controller.modalPresentationStyle = .popover
+        controller.preferredContentSize = CGSize(width: 480, height: 560)
+
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = sourceView ?? view
+            popover.sourceRect = sourceRect == .zero ? (sourceView ?? view).bounds : sourceRect
+            popover.permittedArrowDirections = [.up, .down]
+            popover.canOverlapSourceViewRect = true
+        }
+
+        present(controller, animated: true)
+    }
 
     func pdfViewController(_ pdfController: PDFViewController, didFinishRenderTaskFor pageView: PDFPageView, error: (any Error)?) {
         if let error {
@@ -1529,6 +1560,94 @@ private enum PDFTranslationService {
         return result
     }
 
+
+}
+
+final class PDFTranslationResultViewController: UIViewController {
+    private let originalText: String
+    private let translatedText: String
+
+    init(originalText: String, translatedText: String) {
+        self.originalText = originalText
+        self.translatedText = translatedText
+        super.init(nibName: nil, bundle: nil)
+        title = "Translation"
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .systemBackground
+
+        let originalLabel = UILabel()
+        originalLabel.text = "Original"
+        originalLabel.font = .preferredFont(forTextStyle: .headline)
+
+        let originalView = UITextView()
+        originalView.text = originalText
+        originalView.font = .preferredFont(forTextStyle: .body)
+        originalView.textColor = .secondaryLabel
+        originalView.backgroundColor = .secondarySystemBackground
+        originalView.layer.cornerRadius = 10
+        originalView.isEditable = false
+        originalView.isSelectable = true
+        originalView.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+
+        let translationLabel = UILabel()
+        translationLabel.text = "Translation"
+        translationLabel.font = .preferredFont(forTextStyle: .headline)
+
+        let translationView = UITextView()
+        translationView.text = translatedText
+        translationView.font = .preferredFont(forTextStyle: .body)
+        translationView.backgroundColor = .secondarySystemBackground
+        translationView.layer.cornerRadius = 10
+        translationView.isEditable = false
+        translationView.isSelectable = true
+        translationView.textContainerInset = UIEdgeInsets(top: 10, left: 10, bottom: 10, right: 10)
+
+        let copyButton = UIButton(type: .system)
+        copyButton.setTitle("Copy Translation", for: .normal)
+        copyButton.titleLabel?.font = .preferredFont(forTextStyle: .headline)
+        copyButton.addAction(UIAction { [weak self] _ in
+            UIPasteboard.general.string = self?.translatedText
+        }, for: .touchUpInside)
+
+        let closeButton = UIButton(type: .system)
+        closeButton.setTitle("Done", for: .normal)
+        closeButton.addAction(UIAction { [weak self] _ in
+            self?.dismiss(animated: true)
+        }, for: .touchUpInside)
+
+        let buttons = UIStackView(arrangedSubviews: [copyButton, closeButton])
+        buttons.axis = .horizontal
+        buttons.distribution = .fillEqually
+        buttons.spacing = 12
+
+        let stack = UIStackView(arrangedSubviews: [
+            originalLabel,
+            originalView,
+            translationLabel,
+            translationView,
+            buttons
+        ])
+        stack.axis = .vertical
+        stack.spacing = 10
+        stack.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+            originalView.heightAnchor.constraint(equalToConstant: 120),
+            translationView.heightAnchor.constraint(greaterThanOrEqualToConstant: 220)
+        ])
+    }
 }
 
 extension PDFDocumentViewController: BackForwardActionListDelegate {
