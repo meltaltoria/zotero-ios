@@ -1027,7 +1027,6 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let defaults = UserDefaults.standard
         let endpoint = PDFTranslationSettingsStore.endpoint
         let model = PDFTranslationSettingsStore.model
         let targetLanguage = PDFTranslationSettingsStore.targetLanguage
@@ -1140,7 +1139,7 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
 
 
 
-private enum PDFTranslationSettingsStore {
+enum PDFTranslationSettingsStore {
     private static let service = "org.zotero.ios.Zotero.pdf-translation"
     private static let account = "api-key"
 
