@@ -249,6 +249,41 @@ enum PDFTranslationService {
     }
 
     // Google Translate web endpoint implementation adapted from windingwind/zotero-pdf-translate (AGPLv3).
+    static func googleToken(_ input: String) -> String {
+                var bytes: [UInt32] = []
+                bytes.reserveCapacity(input.utf8.count)
+    
+                for scalar in input.unicodeScalars {
+                    let value = scalar.value
+                    if value < 128 {
+                        bytes.append(value)
+                    } else if value < 2048 {
+                        bytes.append((value >> 6) | 192)
+                        bytes.append((value & 63) | 128)
+                    } else if value < 65536 {
+                        bytes.append((value >> 12) | 224)
+                        bytes.append(((value >> 6) & 63) | 128)
+                        bytes.append((value & 63) | 128)
+                    } else {
+                        bytes.append((value >> 18) | 240)
+                        bytes.append(((value >> 12) & 63) | 128)
+                        bytes.append(((value >> 6) & 63) | 128)
+                        bytes.append((value & 63) | 128)
+                    }
+                }
+    
+                var value: UInt32 = 406644
+                for byte in bytes {
+                    value = value &+ byte
+                    value = rotate(value, "+-a^+6")
+                }
+                value = rotate(value, "+-3^+b+-f")
+                value ^= 3293161072
+    
+                let first = value % 1_000_000
+                return "\(first).\(first ^ 406644)"
+            }
+
     private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
         func rotate(_ a: UInt32, _ pattern: String) -> UInt32 {
             let chars = Array(pattern)
@@ -275,41 +310,7 @@ enum PDFTranslationService {
             return value
         }
 
-        func token(_ input: String) -> String {
-            var bytes: [UInt32] = []
-            bytes.reserveCapacity(input.utf8.count)
-
-            for scalar in input.unicodeScalars {
-                let value = scalar.value
-                if value < 128 {
-                    bytes.append(value)
-                } else if value < 2048 {
-                    bytes.append((value >> 6) | 192)
-                    bytes.append((value & 63) | 128)
-                } else if value < 65536 {
-                    bytes.append((value >> 12) | 224)
-                    bytes.append(((value >> 6) & 63) | 128)
-                    bytes.append((value & 63) | 128)
-                } else {
-                    bytes.append((value >> 18) | 240)
-                    bytes.append(((value >> 12) & 63) | 128)
-                    bytes.append(((value >> 6) & 63) | 128)
-                    bytes.append((value & 63) | 128)
-                }
-            }
-
-            var value: UInt32 = 406644
-            for byte in bytes {
-                value = value &+ byte
-                value = rotate(value, "+-a^+6")
-            }
-            value = rotate(value, "+-3^+b+-f")
-            value ^= 3293161072
-
-            let first = value % 1_000_000
-            return "\(first).\(first ^ 406644)"
-        }
-
+        
         func googleLanguageCode(_ language: String) -> String {
             switch language.lowercased() {
             case "chinese", "zh", "zh-cn", "zh-hans":
@@ -340,7 +341,7 @@ enum PDFTranslationService {
             URLQueryItem(name: "tl", value: googleLanguageCode(targetLanguage)),
             URLQueryItem(name: "hl", value: "en"),
             URLQueryItem(name: "dt", value: "t"),
-            URLQueryItem(name: "tk", value: token(text)),
+            URLQueryItem(name: "tk", value: googleToken(text)),
             URLQueryItem(name: "q", value: text)
         ]
         guard let url = components?.url else {
