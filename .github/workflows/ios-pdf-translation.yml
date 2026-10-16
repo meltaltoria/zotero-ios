@@ -79,6 +79,7 @@ jobs:
           if [ "$RUN_TESTS" = "true" ]; then
             # Test enables TESTING, including the foreground session used by network stubs.
             xcodebuild \
+              -quiet \
               -project Zotero.xcodeproj \
               -scheme Zotero \
               -configuration Test \
@@ -88,11 +89,13 @@ jobs:
               CODE_SIGN_IDENTITY=- \
               CODE_SIGNING_REQUIRED=NO \
               DEVELOPMENT_TEAM= \
+              ONLY_ACTIVE_ARCH=YES \
               -resultBundlePath build/ci/ZoteroTests.xcresult \
               clean test \
               | tee build/ci/xcodebuild.log
           else
             xcodebuild \
+              -quiet \
               -project Zotero.xcodeproj \
               -scheme Zotero \
               -configuration Debug \
@@ -102,6 +105,7 @@ jobs:
               CODE_SIGN_IDENTITY=- \
               CODE_SIGNING_REQUIRED=NO \
               DEVELOPMENT_TEAM= \
+              ONLY_ACTIVE_ARCH=YES \
               clean build \
               | tee build/ci/xcodebuild.log
           fi
@@ -111,7 +115,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-pdf-translation-xcode-log
-          path: |
-            build/ci/xcodebuild.log
-            build/ci/ZoteroTests.xcresult
+          path: build/ci/xcodebuild.log
           if-no-files-found: warn
+
+      - name: Upload XCTest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-pdf-translation-test-results
+          path: build/ci/ZoteroTests.xcresult
+          if-no-files-found: ignore
