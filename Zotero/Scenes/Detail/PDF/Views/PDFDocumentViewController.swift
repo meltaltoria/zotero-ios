@@ -842,8 +842,37 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         appearance: EditMenuAppearance,
         suggestedMenu: UIMenu
     ) -> UIMenu {
-        guard let annotation = annotations.first,
-              annotation.type == .freeText,
+        guard let annotation = annotations.first else { return suggestedMenu }
+
+        // Zotero-synced highlights and underlines can be translated directly into their annotation comment.
+        if (annotation.type == .highlight || annotation.type == .underline),
+           let key = annotation.key,
+           let pdfAnnotation = viewModel.state.annotation(for: .init(key: key, type: .database)),
+           let text = pdfAnnotation.text,
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let translateAction = UIAction(
+                title: "Translate Annotation",
+                image: UIImage(systemName: "character.book.closed")
+            ) { [weak self, weak viewModel] _ in
+                let rect = pageView.convert(annotation.boundingBox, from: pageView.pdfCoordinateSpace)
+                self?.translateSelectedText(
+                    text,
+                    sourceView: pageView,
+                    sourceRect: rect
+                ) { [weak viewModel] translated in
+                    viewModel?.process(
+                        action: .setComment(
+                            key: key,
+                            comment: NSAttributedString(string: translated)
+                        )
+                    )
+                }
+            }
+
+            return suggestedMenu.replacingChildren([translateAction] + suggestedMenu.children)
+        }
+
+        guard annotation.type == .freeText,
               let annotationView = pageView.visibleAnnotationViews.first(where: { $0.annotation == annotation }) as? FreeTextAnnotationView
         else { return UIMenu(children: []) }
 
@@ -1024,7 +1053,12 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         parentDelegate?.didSelectText(text)
     }
 
-    private func translateSelectedText(_ text: String, sourceView: UIView? = nil, sourceRect: CGRect = .zero) {
+    private func translateSelectedText(
+        _ text: String,
+        sourceView: UIView? = nil,
+        sourceRect: CGRect = .zero,
+        translationCompletion: ((String) -> Void)? = nil
+    ) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
@@ -1041,7 +1075,8 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
                 model: model,
                 targetLanguage: targetLanguage,
                 sourceView: sourceView,
-                sourceRect: sourceRect
+                sourceRect: sourceRect,
+                translationCompletion: translationCompletion
             )
             return
         }
@@ -1066,7 +1101,8 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
                             original: trimmed,
                             translated: translated,
                             sourceView: sourceView,
-                            sourceRect: sourceRect
+                            sourceRect: sourceRect,
+                            translationCompletion: translationCompletion
                         )
                     }
                 }
@@ -1092,7 +1128,8 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         model: String,
         targetLanguage: String,
         sourceView: UIView?,
-        sourceRect: CGRect
+        sourceRect: CGRect,
+        translationCompletion: ((String) -> Void)? = nil
     ) {
         let alert = UIAlertController(
             title: "PDF Translation Setup",
@@ -1141,7 +1178,12 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
             PDFTranslationSettingsStore.model = model
             PDFTranslationSettingsStore.targetLanguage = target
 
-            self?.translateSelectedText(initialText, sourceView: sourceView, sourceRect: sourceRect)
+            self?.translateSelectedText(
+                initialText,
+                sourceView: sourceView,
+                sourceRect: sourceRect,
+                translationCompletion: translationCompletion
+            )
         })
         present(alert, animated: true)
     }
@@ -1152,11 +1194,13 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         original: String,
         translated: String,
         sourceView: UIView?,
-        sourceRect: CGRect
+        sourceRect: CGRect,
+        translationCompletion: ((String) -> Void)? = nil
     ) {
         let controller = PDFTranslationResultViewController(
             originalText: original,
-            translatedText: translated
+            translatedText: translated,
+            translationCompletion: translationCompletion
         )
 
         controller.modalPresentationStyle = .popover
@@ -1570,9 +1614,16 @@ final class PDFTranslationResultViewController: UIViewController {
     private let originalText: String
     private let translatedText: String
 
-    init(originalText: String, translatedText: String) {
+    private let translationCompletion: ((String) -> Void)?
+
+    init(
+        originalText: String,
+        translatedText: String,
+        translationCompletion: ((String) -> Void)? = nil
+    ) {
         self.originalText = originalText
         self.translatedText = translatedText
+        self.translationCompletion = translationCompletion
         super.init(nibName: nil, bundle: nil)
         title = "Translation"
     }
@@ -1624,6 +1675,42 @@ final class PDFTranslationResultViewController: UIViewController {
         closeButton.addAction(UIAction { [weak self] _ in
             self?.dismiss(animated: true)
         }, for: .touchUpInside)
+
+        if let translationCompletion {
+            let saveButton = UIButton(type: .system)
+            saveButton.setTitle("Add to Annotation", for: .normal)
+            saveButton.addAction(UIAction { [weak self] _ in
+                translationCompletion(self?.translatedText ?? "")
+                self?.dismiss(animated: true)
+            }, for: .touchUpInside)
+
+            let annotationButtons = UIStackView(arrangedSubviews: [copyButton, saveButton, closeButton])
+            annotationButtons.axis = .horizontal
+            annotationButtons.distribution = .fillEqually
+            annotationButtons.spacing = 12
+
+            let stack = UIStackView(arrangedSubviews: [
+                originalLabel,
+                originalView,
+                translationLabel,
+                translationView,
+                annotationButtons
+            ])
+            stack.axis = .vertical
+            stack.spacing = 10
+            stack.translatesAutoresizingMaskIntoConstraints = false
+
+            view.addSubview(stack)
+            NSLayoutConstraint.activate([
+                stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+                stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+                stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
+                stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+                originalView.heightAnchor.constraint(equalToConstant: 120),
+                translationView.heightAnchor.constraint(greaterThanOrEqualToConstant: 220)
+            ])
+            return
+        }
 
         let buttons = UIStackView(arrangedSubviews: [copyButton, closeButton])
         buttons.axis = .horizontal
