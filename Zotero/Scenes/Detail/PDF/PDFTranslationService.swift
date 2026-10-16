@@ -8,6 +8,7 @@
 
 import Foundation
 import Security
+import SwiftUI
 
 enum PDFTranslationSettingsStore {
     private static let service = "org.zotero.ios.Zotero.pdf-translation"
@@ -148,6 +149,76 @@ enum PDFTranslationSettingsStore {
             return nil
         }
         return String(data: data, encoding: .utf8)
+    }
+}
+
+@available(iOS 18.0, *)
+final class PDFSystemTranslationBridge: ObservableObject {
+    @Published var isPresented = false
+    var onDismiss: (() -> Void)?
+
+    func present() {
+        isPresented = true
+    }
+
+    func dismiss() {
+        isPresented = false
+    }
+}
+
+@available(iOS 18.0, *)
+private struct PDFSystemTranslationView: View {
+    @ObservedObject var bridge: PDFSystemTranslationBridge
+    let text: String
+    let replacementAction: ((String) -> Void)?
+
+    var body: some View {
+        Color.clear
+            .frame(width: 2, height: 2)
+            .translationPresentation(
+                isPresented: $bridge.isPresented,
+                text: text,
+                replacementAction: replacementAction
+            )
+            .onChange(of: bridge.isPresented) { isPresented in
+                if !isPresented {
+                    bridge.onDismiss?()
+                }
+            }
+    }
+}
+
+@available(iOS 18.0, *)
+final class PDFSystemTranslationHostController: UIHostingController<PDFSystemTranslationView> {
+    private let bridge: PDFSystemTranslationBridge
+
+    init(text: String, replacementAction: ((String) -> Void)? = nil) {
+        let bridge = PDFSystemTranslationBridge()
+        self.bridge = bridge
+        super.init(
+            rootView: PDFSystemTranslationView(
+                bridge: bridge,
+                text: text,
+                replacementAction: replacementAction
+            )
+        )
+        view.backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func presentTranslation() {
+        bridge.present()
+    }
+
+    func cancelTranslation() {
+        bridge.dismiss()
+    }
+
+    func setOnDismiss(_ action: @escaping () -> Void) {
+        bridge.onDismiss = action
     }
 }
 
