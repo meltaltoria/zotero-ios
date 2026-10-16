@@ -418,7 +418,6 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
     }
 }
 
-
 private struct PDFTranslationSettingsView: View {
     @State private var provider: String
     @State private var apiKey: String
@@ -457,8 +456,10 @@ private struct PDFTranslationSettingsView: View {
         switch provider {
         case "google":
             return "Google Translate uses the web translation endpoint and does not require an API key."
+
         case "apple":
             return "Apple Translation uses the system translation UI on iPadOS 18 or later."
+
         default:
             return "OpenAI-compatible mode sends the selected text to the endpoint configured above."
         }
