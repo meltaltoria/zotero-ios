@@ -1,3 +1,4 @@
+# This workflow is mirrored on the default branch so it can be manually dispatched.
 name: iPad PDF Translation CI
 
 on:
