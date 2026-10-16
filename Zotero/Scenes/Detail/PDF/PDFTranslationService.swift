@@ -167,7 +167,7 @@ final class PDFSystemTranslationBridge: ObservableObject {
 }
 
 @available(iOS 18.0, *)
-private struct PDFSystemTranslationView: View {
+struct PDFSystemTranslationView: View {
     @ObservedObject var bridge: PDFSystemTranslationBridge
     let text: String
     let replacementAction: ((String) -> Void)?
