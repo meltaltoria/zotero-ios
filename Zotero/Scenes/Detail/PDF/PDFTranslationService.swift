@@ -256,57 +256,57 @@ enum PDFTranslationService {
             var index = 0
 
             while index + 2 < chars.count {
-                let c0 = chars[index]
-                let c1 = chars[index + 1]
-                let c2 = chars[index + 2]
+        let c0 = chars[index]
+        let c1 = chars[index + 1]
+        let c2 = chars[index + 2]
 
-                let shift: UInt32
-                if c2 >= Character("a") {
-                    shift = UInt32(c2.asciiValue ?? 0) - 87
-                } else {
-                    shift = UInt32(String(c2)) ?? 0
-                }
+        let shift: UInt32
+        if c2 >= Character("a") {
+            shift = UInt32(c2.asciiValue ?? 0) - 87
+        } else {
+            shift = UInt32(String(c2)) ?? 0
+        }
 
-                let shifted = c1 == "+" ? value >> shift : value << shift
-                value = c0 == "+" ? value &+ shifted : value ^ shifted
-                index += 3
+        let shifted = c1 == "+" ? value >> shift : value << shift
+        value = c0 == "+" ? value &+ shifted : value ^ shifted
+        index += 3
             }
 
             return value
         }
 
-                var bytes: [UInt32] = []
-                bytes.reserveCapacity(input.utf8.count)
+        var bytes: [UInt32] = []
+        bytes.reserveCapacity(input.utf8.count)
     
-                for scalar in input.unicodeScalars {
-                    let value = scalar.value
-                    if value < 128 {
-                        bytes.append(value)
-                    } else if value < 2048 {
-                        bytes.append((value >> 6) | 192)
-                        bytes.append((value & 63) | 128)
-                    } else if value < 65536 {
-                        bytes.append((value >> 12) | 224)
-                        bytes.append(((value >> 6) & 63) | 128)
-                        bytes.append((value & 63) | 128)
-                    } else {
-                        bytes.append((value >> 18) | 240)
-                        bytes.append(((value >> 12) & 63) | 128)
-                        bytes.append(((value >> 6) & 63) | 128)
-                        bytes.append((value & 63) | 128)
-                    }
-                }
+        for scalar in input.unicodeScalars {
+            let value = scalar.value
+            if value < 128 {
+                bytes.append(value)
+            } else if value < 2048 {
+                bytes.append((value >> 6) | 192)
+                bytes.append((value & 63) | 128)
+            } else if value < 65536 {
+                bytes.append((value >> 12) | 224)
+                bytes.append(((value >> 6) & 63) | 128)
+                bytes.append((value & 63) | 128)
+            } else {
+                bytes.append((value >> 18) | 240)
+                bytes.append(((value >> 12) & 63) | 128)
+                bytes.append(((value >> 6) & 63) | 128)
+                bytes.append((value & 63) | 128)
+            }
+        }
     
-                var value: UInt32 = 406644
-                for byte in bytes {
-                    value = value &+ byte
-                    value = rotate(value, "+-a^+6")
-                }
-                value = rotate(value, "+-3^+b+-f")
-                value ^= 3293161072
+        var value: UInt32 = 406644
+        for byte in bytes {
+            value = value &+ byte
+            value = rotate(value, "+-a^+6")
+        }
+        value = rotate(value, "+-3^+b+-f")
+        value ^= 3293161072
     
-                let first = value % 1_000_000
-                return "\(first).\(first ^ 406644)"
+        let first = value % 1_000_000
+        return "\(first).\(first ^ 406644)"
             }
 
     private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
