@@ -1,12 +1,17 @@
 name: Run tests
 
 on: 
+  workflow_dispatch:
   push:
     tags-ignore:
       - '**'
     branches:
       - '**'
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   tests:
@@ -51,4 +56,4 @@ jobs:
           scheme: Zotero
           destination: platform=iOS Simulator,OS=${{ matrix.ios_version }},name=${{ matrix.device_name }}
           action: clean test
-          build-settings: CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          build-settings: CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM=

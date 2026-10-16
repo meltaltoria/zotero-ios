@@ -1,3 +1,4 @@
+# This workflow is mirrored on the default branch so it can be manually dispatched.
 name: iPad PDF Translation CI
 
 on:
@@ -13,12 +14,19 @@ on:
         required: true
         default: true
         type: boolean
+  push:
+    branches:
+      - "feature/pdf-translate-ios"
   pull_request:
     branches:
       - "master"
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.ref || github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -30,7 +38,7 @@ jobs:
       - name: Checkout selected ref
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ inputs.ref || github.ref }}
           submodules: recursive
           fetch-depth: 0
 
@@ -49,6 +57,9 @@ jobs:
       - name: Prepare generated dependencies
         run: ./scripts/setup.sh
 
+      - name: Verify signing script behavior
+        run: python3 -B -m unittest discover -s scripts/tests -v
+
       - name: Resolve Swift packages
         run: |
           xcodebuild \
@@ -58,7 +69,7 @@ jobs:
 
       - name: Build and test on iPad Simulator
         env:
-          RUN_TESTS: ${{ inputs.run_tests }}
+          RUN_TESTS: ${{ github.event_name != 'workflow_dispatch' || inputs.run_tests }}
         run: |
           set -o pipefail
           mkdir -p build/ci
@@ -66,25 +77,37 @@ jobs:
           DESTINATION="platform=iOS Simulator,OS=26.5,name=iPad Pro 13-inch (M5)"
 
           if [ "$RUN_TESTS" = "true" ]; then
+            # Test enables TESTING, including the foreground session used by network stubs.
             xcodebuild \
+              -quiet \
               -project Zotero.xcodeproj \
               -scheme Zotero \
-              -configuration Debug \
+              -configuration Test \
               -destination "$DESTINATION" \
               -derivedDataPath build/DerivedData \
-              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_ALLOWED=YES \
+              CODE_SIGN_IDENTITY=- \
+              CODE_SIGNING_REQUIRED=NO \
+              DEVELOPMENT_TEAM= \
+              ONLY_ACTIVE_ARCH=YES \
+              -resultBundlePath build/ci/ZoteroTests.xcresult \
               clean test \
-              | tee build/ci/xcodebuild.log
+              2>&1 | tee build/ci/xcodebuild.log
           else
             xcodebuild \
+              -quiet \
               -project Zotero.xcodeproj \
               -scheme Zotero \
               -configuration Debug \
               -destination "$DESTINATION" \
               -derivedDataPath build/DerivedData \
-              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGNING_ALLOWED=YES \
+              CODE_SIGN_IDENTITY=- \
+              CODE_SIGNING_REQUIRED=NO \
+              DEVELOPMENT_TEAM= \
+              ONLY_ACTIVE_ARCH=YES \
               clean build \
-              | tee build/ci/xcodebuild.log
+              2>&1 | tee build/ci/xcodebuild.log
           fi
 
       - name: Upload Xcode build log
@@ -94,3 +117,11 @@ jobs:
           name: ios-pdf-translation-xcode-log
           path: build/ci/xcodebuild.log
           if-no-files-found: warn
+
+      - name: Upload XCTest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-pdf-translation-test-results
+          path: build/ci/ZoteroTests.xcresult
+          if-no-files-found: ignore

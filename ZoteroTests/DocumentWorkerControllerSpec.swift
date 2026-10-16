@@ -561,7 +561,8 @@ final class DocumentWorkerControllerSpec: QuickSpec {
                 }
 
                 let structuredTextFixtures = [
-                    (description: "PDF", resource: "1", fileExtension: "pdf", key: "dddddddd", contentType: "application/pdf", expected: "1_pdf_structured_text", timeout: 120),
+                    // The first PDF also initializes the WASM/ONNX models on a cold CI simulator.
+                    (description: "PDF", resource: "1", fileExtension: "pdf", key: "dddddddd", contentType: "application/pdf", expected: "1_pdf_structured_text", timeout: 300),
                     (description: "bitcoin PDF", resource: "bitcoin", fileExtension: "pdf", key: "ddddddd2", contentType: "application/pdf", expected: "bitcoin_pdf_structured_text", timeout: 120),
                     (description: "cocaine-related ischemic strokes PDF", resource: "cocaine-related-ischemic-strokes", fileExtension: "pdf", key: "ddddddd3", contentType: "application/pdf", expected: "cocaine_related_ischemic_strokes_pdf_structured_text", timeout: 240),
                     (description: "ethics in law enforcement PDF", resource: "ethics-in-law-enforcement", fileExtension: "pdf", key: "ddddddd4", contentType: "application/pdf", expected: "ethics_in_law_enforcement_pdf_structured_text", timeout: 240),
