@@ -453,6 +453,17 @@ private struct PDFTranslationSettingsView: View {
         self.closeAction = closeAction
     }
 
+    private var providerDescription: String {
+        switch provider {
+        case "google":
+            return "Google Translate uses the web translation endpoint and does not require an API key."
+        case "apple":
+            return "Apple Translation uses the system translation UI on iPadOS 18 or later."
+        default:
+            return "OpenAI-compatible mode sends the selected text to the endpoint configured above."
+        }
+    }
+
     var body: some View {
         Form {
             Section {
@@ -483,16 +494,7 @@ private struct PDFTranslationSettingsView: View {
             } header: {
                 Text("Translation Service")
             } footer: {
-                Text({
-                    switch provider {
-                    case "google":
-                        return "Google Translate uses the web translation endpoint and does not require an API key."
-                    case "apple":
-                        return "Apple Translation uses the system translation UI on iPadOS 18 or later."
-                    default:
-                        return "OpenAI-compatible mode sends the selected text to the endpoint configured above."
-                    }
-                }())
+                Text(providerDescription)
             }
 
             Section {
