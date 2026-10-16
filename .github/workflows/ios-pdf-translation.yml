@@ -1,0 +1,93 @@
+name: iPad PDF Translation CI
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git branch, tag, or commit to build"
+        required: true
+        default: "feature/pdf-translate-ios"
+        type: string
+      run_tests:
+        description: "Run the Zotero XCTest suite after the build"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build iPad PDF Translation
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout selected ref
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Select Xcode 26.5
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.5.app
+          xcodebuild -version
+          xcrun simctl list runtimes | grep -E "iOS 26\\.(4|5)" || true
+          xcrun simctl list devices available | grep -F "iPad Pro 13-inch (M5)" || true
+
+      - name: Install build tools
+        run: |
+          which swiftgen || HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install swiftgen
+          which swiftlint || HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install swiftlint
+
+      - name: Prepare generated dependencies
+        run: ./scripts/setup.sh
+
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild \
+            -project Zotero.xcodeproj \
+            -scheme Zotero \
+            -resolvePackageDependencies
+
+      - name: Build and test on iPad Simulator
+        env:
+          RUN_TESTS: ${{ inputs.run_tests }}
+        run: |
+          set -o pipefail
+          mkdir -p build/ci
+
+          DESTINATION="platform=iOS Simulator,OS=26.5,name=iPad Pro 13-inch (M5)"
+
+          if [ "$RUN_TESTS" = "true" ]; then
+            xcodebuild \
+              -project Zotero.xcodeproj \
+              -scheme Zotero \
+              -configuration Debug \
+              -destination "$DESTINATION" \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGNING_ALLOWED=NO \
+              clean test \
+              | tee build/ci/xcodebuild.log
+          else
+            xcodebuild \
+              -project Zotero.xcodeproj \
+              -scheme Zotero \
+              -configuration Debug \
+              -destination "$DESTINATION" \
+              -derivedDataPath build/DerivedData \
+              CODE_SIGNING_ALLOWED=NO \
+              clean build \
+              | tee build/ci/xcodebuild.log
+          fi
+
+      - name: Upload Xcode build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-pdf-translation-xcode-log
+          path: build/ci/xcodebuild.log
+          if-no-files-found: warn
