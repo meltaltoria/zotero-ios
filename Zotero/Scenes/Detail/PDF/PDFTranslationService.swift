@@ -250,6 +250,31 @@ enum PDFTranslationService {
 
     // Google Translate web endpoint implementation adapted from windingwind/zotero-pdf-translate (AGPLv3).
     static func googleToken(_ input: String) -> String {
+        func rotate(_ a: UInt32, _ pattern: String) -> UInt32 {
+            let chars = Array(pattern)
+            var value = a
+            var index = 0
+
+            while index + 2 < chars.count {
+                let c0 = chars[index]
+                let c1 = chars[index + 1]
+                let c2 = chars[index + 2]
+
+                let shift: UInt32
+                if c2 >= Character("a") {
+                    shift = UInt32(c2.asciiValue ?? 0) - 87
+                } else {
+                    shift = UInt32(String(c2)) ?? 0
+                }
+
+                let shifted = c1 == "+" ? value >> shift : value << shift
+                value = c0 == "+" ? value &+ shifted : value ^ shifted
+                index += 3
+            }
+
+            return value
+        }
+
                 var bytes: [UInt32] = []
                 bytes.reserveCapacity(input.utf8.count)
     
@@ -285,32 +310,7 @@ enum PDFTranslationService {
             }
 
     private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
-        func rotate(_ a: UInt32, _ pattern: String) -> UInt32 {
-            let chars = Array(pattern)
-            var value = a
-            var index = 0
 
-            while index + 2 < chars.count {
-                let c0 = chars[index]
-                let c1 = chars[index + 1]
-                let c2 = chars[index + 2]
-
-                let shift: UInt32
-                if c2 >= Character("a") {
-                    shift = UInt32(c2.asciiValue ?? 0) - 87
-                } else {
-                    shift = UInt32(String(c2)) ?? 0
-                }
-
-                let shifted = c1 == "+" ? value >> shift : value << shift
-                value = c0 == "+" ? value &+ shifted : value ^ shifted
-                index += 3
-            }
-
-            return value
-        }
-
-        
         func googleLanguageCode(_ language: String) -> String {
             switch language.lowercased() {
             case "chinese", "zh", "zh-cn", "zh-hans":
