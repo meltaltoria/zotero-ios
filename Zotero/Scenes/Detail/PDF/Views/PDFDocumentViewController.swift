@@ -1392,7 +1392,6 @@ private enum PDFTranslationService {
     // Google Translate web endpoint implementation adapted from windingwind/zotero-pdf-translate (AGPLv3).
     private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
         func RL(_ a: Int64, _ b: String) -> Int64 {
-            let t: Int64 = 97
             let plus: Character = "+"
             var value = a
             var index = b.startIndex
@@ -1445,7 +1444,7 @@ private enum PDFTranslationService {
                 value = (value & 0x7FFFFFFF) + 0x80000000
             }
             value %= 1_000_000
-            return "(value).(value ^ 406644)"
+            return "\\(value).\\(value ^ 406644)"
         }
 
         func googleLanguageCode(_ language: String) -> String {
