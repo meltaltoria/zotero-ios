@@ -1229,7 +1229,7 @@ enum PDFTranslationSettingsStore {
         get {
             UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.prompt")
                 ?? """
-                You are an academic translator. Translate the supplied scientific paper excerpt into Chinese.
+                You are an academic translator. Translate the supplied scientific paper excerpt into {{targetLanguage}}.
                 Preserve equations, symbols, chemical formulas, material names, abbreviations, citations, and technical terminology.
                 For battery and materials-science terminology, prefer established Chinese academic terminology.
                 Do not add explanations or omit information. Return only the translation.
