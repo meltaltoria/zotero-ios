@@ -10,6 +10,7 @@ import Foundation
 import Security
 import SwiftUI
 import Translation
+import UIKit
 
 enum PDFTranslationSettingsStore {
     private static let service = "org.zotero.ios.Zotero.pdf-translation"
@@ -35,7 +36,7 @@ enum PDFTranslationSettingsStore {
 
     static var model: String {
         get {
-            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.model") ?? "gpt-4o-mini"
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.model") ?? "gpt-5.4-mini"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.model")
@@ -225,7 +226,6 @@ enum PDFTranslationService {
 
         let model: String
         let messages: [Message]
-        let temperature: Double
     }
 
     private struct Response: Decodable {
@@ -324,8 +324,7 @@ enum PDFTranslationService {
             messages: [
                 .init(role: "system", content: systemPrompt),
                 .init(role: "user", content: text)
-            ],
-            temperature: 0
+            ]
         )
         request.httpBody = try JSONEncoder().encode(body)
 
