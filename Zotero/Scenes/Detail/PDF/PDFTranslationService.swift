@@ -220,6 +220,7 @@ final class PDFSystemTranslationHostController: UIHostingController<PDFSystemTra
 }
 
 enum PDFTranslationService {
+    private static let cache = NSCache<NSString, NSString>()
     private struct Request: Encodable {
         struct Message: Encodable {
             let role: String
@@ -248,8 +249,14 @@ enum PDFTranslationService {
         targetLanguage: String,
         apiKey: String
     ) async throws -> String {
+        let cacheKey = "\(provider)|\(model)|\(targetLanguage)|\(text)" as NSString
+        if let cached = cache.object(forKey: cacheKey) {
+            return cached as String
+        }
         if provider == "google" {
-            return try await translateWithGoogle(text: text, targetLanguage: targetLanguage)
+            let result = try await translateWithGoogle(text: text, targetLanguage: targetLanguage)
+            cache.setObject(result as NSString, forKey: cacheKey)
+            return result
         }
         var base = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") {
@@ -313,6 +320,7 @@ enum PDFTranslationService {
                 userInfo: [NSLocalizedDescriptionKey: "The translation service returned no text."]
             )
         }
+        cache.setObject(content as NSString, forKey: cacheKey)
         return content
     }
 
@@ -378,6 +386,62 @@ enum PDFTranslationService {
             }
 
     private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
+        let maxChunkLength = 1800
+        if text.count > maxChunkLength {
+            let chunks = splitGoogleText(text, maxLength: maxChunkLength)
+            var translations: [String] = []
+            translations.reserveCapacity(chunks.count)
+
+            for chunk in chunks {
+                translations.append(
+                    try await translateWithGoogle(text: chunk, targetLanguage: targetLanguage)
+                )
+            }
+            return translations.joined(separator: "\n\n")
+        }
+
+    private static func splitGoogleText(_ text: String, maxLength: Int) -> [String] {
+        guard text.count > maxLength else { return [text] }
+
+        let paragraphs = text.components(separatedBy: "\n\n")
+        var chunks: [String] = []
+        var current = ""
+
+        func appendCurrent() {
+            let value = current.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !value.isEmpty {
+                chunks.append(value)
+            }
+            current = ""
+        }
+
+        for paragraph in paragraphs {
+            if paragraph.count <= maxLength {
+                let candidate = current.isEmpty ? paragraph : current + "\n\n" + paragraph
+                if candidate.count <= maxLength {
+                    current = candidate
+                } else {
+                    appendCurrent()
+                    current = paragraph
+                }
+                continue
+            }
+
+            appendCurrent()
+            var remaining = paragraph[...]
+            while !remaining.isEmpty {
+                let end = remaining.index(
+                    remaining.startIndex,
+                    offsetBy: min(maxLength, remaining.count)
+                )
+                chunks.append(String(remaining[..<end]))
+                remaining = remaining[end...]
+            }
+        }
+
+        appendCurrent()
+        return chunks
+    }
 
         func googleLanguageCode(_ language: String) -> String {
             switch language.lowercased() {
