@@ -25,6 +25,7 @@ protocol SettingsCoordinatorDelegate: AnyObject {
     func showDebugging()
     func showSavingSettings()
     func showGeneralSettings()
+    func showTranslationSettings()
     func dismiss()
     func showLogoutAlert(viewModel: ViewModel<SyncSettingsActionHandler>)
     func showSchemePicker(viewModel: ViewModel<SyncSettingsActionHandler>)
@@ -330,6 +331,71 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
         let viewModel = ViewModel(initialState: GeneralSettingsState(), handler: GeneralSettingsActionHandler())
         let view = GeneralSettingsView().environmentObject(viewModel)
         self.pushDefaultSize(view: view)
+    }
+
+    func showTranslationSettings() {
+        let controller = UIAlertController(
+            title: "PDF Translation",
+            message: "Configure the translation service used by the PDF reader.",
+            preferredStyle: .alert
+        )
+
+        controller.addTextField { field in
+            field.placeholder = "API Key"
+            field.text = PDFTranslationSettingsStore.apiKey
+            field.isSecureTextEntry = true
+        }
+        controller.addTextField { field in
+            field.placeholder = "Endpoint"
+            field.text = PDFTranslationSettingsStore.endpoint
+            field.keyboardType = .URL
+        }
+        controller.addTextField { field in
+            field.placeholder = "Model"
+            field.text = PDFTranslationSettingsStore.model
+        }
+        controller.addTextField { field in
+            field.placeholder = "Target language"
+            field.text = PDFTranslationSettingsStore.targetLanguage
+        }
+        controller.addTextField { field in
+            field.placeholder = "Prompt (optional)"
+            field.text = PDFTranslationSettingsStore.prompt
+        }
+
+        controller.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        controller.addAction(UIAlertAction(title: "Clear API Key", style: .destructive) { _ in
+            PDFTranslationSettingsStore.deleteAPIKey()
+        })
+        controller.addAction(UIAlertAction(title: "Save", style: .default) { _ in
+            guard let fields = controller.textFields, fields.count >= 5 else { return }
+
+            let key = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let endpoint = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let model = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let target = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let prompt = fields[4].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+            if key.isEmpty {
+                PDFTranslationSettingsStore.deleteAPIKey()
+            } else {
+                try? PDFTranslationSettingsStore.setAPIKey(key)
+            }
+            if !endpoint.isEmpty {
+                PDFTranslationSettingsStore.endpoint = endpoint
+            }
+            if !model.isEmpty {
+                PDFTranslationSettingsStore.model = model
+            }
+            if !target.isEmpty {
+                PDFTranslationSettingsStore.targetLanguage = target
+            }
+            if !prompt.isEmpty {
+                PDFTranslationSettingsStore.prompt = prompt
+            }
+        })
+
+        self.navigationController?.present(controller, animated: true)
     }
     
     func showAnnotationToolsSettings() {
