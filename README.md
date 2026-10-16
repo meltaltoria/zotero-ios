@@ -11,7 +11,8 @@ This fork contains an experimental native PDF translation integration for iOS/iP
 3. The default service is Google Translate and does not require an API key.
 4. Results are shown in an iPad-friendly popover with the original text, translation, and copy action.
 5. Zotero highlights/underlines expose **Translate Annotation**; the translated result can be saved to the annotation comment.
-6. Translation settings are available from Zotero Settings → Translation.
+6. When a Zotero note editor is active, the result also offers **Add to Note**, inserting the original text and translation through the bundled ProseMirror editor.
+7. Translation settings are available from Zotero Settings → Translation.
 
 ### OpenAI-compatible service
 
