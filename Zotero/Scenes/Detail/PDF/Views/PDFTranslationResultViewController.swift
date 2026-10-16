@@ -36,7 +36,7 @@ final class PDFTranslationResultViewController: UIViewController {
                 .replacingOccurrences(of: "&", with: "&amp;")
                 .replacingOccurrences(of: "<", with: "&lt;")
                 .replacingOccurrences(of: ">", with: "&gt;")
-                .replacingOccurrences(of: """, with: "&quot;")
+                .replacingOccurrences(of: "\"", with: "&quot;")
                 .replacingOccurrences(of: "'", with: "&#39;")
                 .replacingOccurrences(of: "\n", with: "<br>")
         }
