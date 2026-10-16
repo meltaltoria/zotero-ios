@@ -845,7 +845,7 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         guard let annotation = annotations.first else { return suggestedMenu }
 
         // Zotero-synced highlights and underlines can be translated directly into their annotation comment.
-        if (annotation.type == .highlight || annotation.type == .underline),
+        if annotation.type == .highlight || annotation.type == .underline,
            let key = annotation.key,
            let pdfAnnotation = viewModel.state.annotation(for: .init(key: key, type: .database)),
            let text = pdfAnnotation.text,
@@ -1203,8 +1203,6 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         present(alert, animated: true)
     }
 
-
-
     @available(iOS 18.0, *)
     private func presentSystemTranslation(
         text: String,
@@ -1302,8 +1300,6 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         }
     }
 }
-
-
 
 extension PDFDocumentViewController: BackForwardActionListDelegate {
     func backForwardList(_ list: PSPDFKit.BackForwardActionList, requestedBackActionExecution actions: [Action], animated: Bool) {
