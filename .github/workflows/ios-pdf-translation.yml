@@ -53,6 +53,9 @@ jobs:
       - name: Prepare generated dependencies
         run: ./scripts/setup.sh
 
+      - name: Verify signing script behavior
+        run: python3 -B -m unittest discover -s scripts/tests -v
+
       - name: Resolve Swift packages
         run: |
           xcodebuild \
@@ -62,7 +65,7 @@ jobs:
 
       - name: Build and test on iPad Simulator
         env:
-          RUN_TESTS: ${{ inputs.run_tests || 'true' }}
+          RUN_TESTS: ${{ github.event_name != 'workflow_dispatch' || inputs.run_tests }}
         run: |
           set -o pipefail
           mkdir -p build/ci
@@ -77,6 +80,7 @@ jobs:
               -destination "$DESTINATION" \
               -derivedDataPath build/DerivedData \
               CODE_SIGNING_ALLOWED=NO \
+              -resultBundlePath build/ci/ZoteroTests.xcresult \
               clean test \
               | tee build/ci/xcodebuild.log
           else
@@ -96,5 +100,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-pdf-translation-xcode-log
-          path: build/ci/xcodebuild.log
+          path: |
+            build/ci/xcodebuild.log
+            build/ci/ZoteroTests.xcresult
           if-no-files-found: warn
