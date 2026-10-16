@@ -341,7 +341,11 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
         )
 
         controller.addTextField { field in
-            field.placeholder = "API Key"
+            field.placeholder = "Service: google or openai"
+            field.text = PDFTranslationSettingsStore.provider
+        }
+        controller.addTextField { field in
+            field.placeholder = "API Key (required for openai)"
             field.text = PDFTranslationSettingsStore.apiKey
             field.isSecureTextEntry = true
         }
@@ -368,14 +372,18 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
             PDFTranslationSettingsStore.deleteAPIKey()
         })
         controller.addAction(UIAlertAction(title: "Save", style: .default) { _ in
-            guard let fields = controller.textFields, fields.count >= 5 else { return }
+            guard let fields = controller.textFields, fields.count >= 6 else { return }
 
-            let key = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let endpoint = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let model = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let target = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let prompt = fields[4].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let provider = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "google"
+            let key = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let endpoint = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let model = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let target = fields[4].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let prompt = fields[5].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
+            guard provider == "google" || provider == "openai" else { return }
+
+            PDFTranslationSettingsStore.provider = provider
             if key.isEmpty {
                 PDFTranslationSettingsStore.deleteAPIKey()
             } else {
