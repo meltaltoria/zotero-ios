@@ -1027,12 +1027,13 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        let provider = PDFTranslationSettingsStore.provider
         let endpoint = PDFTranslationSettingsStore.endpoint
         let model = PDFTranslationSettingsStore.model
         let targetLanguage = PDFTranslationSettingsStore.targetLanguage
         let apiKey = PDFTranslationSettingsStore.apiKey
 
-        if apiKey.isEmpty {
+        if provider == "openai" && apiKey.isEmpty {
             presentTranslationSettings(initialText: trimmed, endpoint: endpoint, model: model, targetLanguage: targetLanguage)
             return
         }
@@ -1045,6 +1046,7 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
             do {
                 let translated = try await PDFTranslationService.translate(
                     text: trimmed,
+                    provider: provider,
                     endpoint: endpoint,
                     model: model,
                     targetLanguage: targetLanguage,
@@ -1088,11 +1090,15 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
     ) {
         let alert = UIAlertController(
             title: "PDF Translation Setup",
-            message: "Configure an OpenAI-compatible translation endpoint. Your API key is stored locally in this first version.",
+            message: "Use Google for a free web translation, or openai for an OpenAI-compatible API.",
             preferredStyle: .alert
         )
         alert.addTextField { field in
-            field.placeholder = "API Key"
+            field.placeholder = "Service: google or openai"
+            field.text = PDFTranslationSettingsStore.provider
+        }
+        alert.addTextField { field in
+            field.placeholder = "API Key (required for openai)"
             field.text = PDFTranslationSettingsStore.apiKey
             field.isSecureTextEntry = true
         }
@@ -1111,18 +1117,23 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Save & Translate", style: .default) { [weak self, weak alert] _ in
-            guard let fields = alert?.textFields, fields.count >= 4 else { return }
-            let key = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let endpoint = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let model = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let target = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !key.isEmpty, !endpoint.isEmpty, !model.isEmpty, !target.isEmpty else { return }
+            guard let fields = alert?.textFields, fields.count >= 5 else { return }
+            let provider = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "google"
+            let key = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let endpoint = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let model = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let target = fields[4].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard provider == "google" || provider == "openai", !endpoint.isEmpty, !model.isEmpty, !target.isEmpty else { return }
 
-            let defaults = UserDefaults.standard
-            try? PDFTranslationSettingsStore.setAPIKey(key)
-            defaults.set(endpoint, forKey: "ZoteroPDFTranslate.endpoint")
-            defaults.set(model, forKey: "ZoteroPDFTranslate.model")
-            defaults.set(target, forKey: "ZoteroPDFTranslate.targetLanguage")
+            PDFTranslationSettingsStore.provider = provider
+            if key.isEmpty {
+                PDFTranslationSettingsStore.deleteAPIKey()
+            } else {
+                try? PDFTranslationSettingsStore.setAPIKey(key)
+            }
+            PDFTranslationSettingsStore.endpoint = endpoint
+            PDFTranslationSettingsStore.model = model
+            PDFTranslationSettingsStore.targetLanguage = target
 
             self?.translateSelectedText(initialText)
         })
@@ -1142,6 +1153,16 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
 enum PDFTranslationSettingsStore {
     private static let service = "org.zotero.ios.Zotero.pdf-translation"
     private static let account = "api-key"
+
+
+    static var provider: String {
+        get {
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.provider") ?? "google"
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.provider")
+        }
+    }
 
     static var endpoint: String {
         get {
@@ -1294,11 +1315,15 @@ private enum PDFTranslationService {
 
     static func translate(
         text: String,
+        provider: String,
         endpoint: String,
         model: String,
         targetLanguage: String,
         apiKey: String
     ) async throws -> String {
+        if provider == "google" {
+            return try await translateWithGoogle(text: text, targetLanguage: targetLanguage)
+        }
         var base = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") {
             base.removeLast()
@@ -1363,6 +1388,148 @@ private enum PDFTranslationService {
         }
         return content
     }
+
+    // Google Translate web endpoint implementation adapted from windingwind/zotero-pdf-translate (AGPLv3).
+    private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
+        func RL(_ a: Int64, _ b: String) -> Int64 {
+            let t: Int64 = 97
+            let plus: Character = "+"
+            var value = a
+            var index = b.startIndex
+            while index < b.endIndex {
+                let c1 = b[index]
+                let next = b.index(index, offsetBy: 1, limitedBy: b.index(before: b.endIndex))
+                guard let next else { break }
+                let c2 = b[next]
+                let next2 = b.index(next, offsetBy: 1, limitedBy: b.index(before: b.endIndex))
+                guard let next2 else { break }
+                let c3 = b[next2]
+                var shift: Int64
+                if c3 >= Character("a") {
+                    shift = Int64(c3.asciiValue ?? 0) - 87
+                } else {
+                    shift = Int64(String(c3)) ?? 0
+                }
+                let d = c2 == plus ? (value >> shift) : (value << shift)
+                value = c1 == plus ? (value + d) & 0xFFFFFFFF : value ^ d
+                index = b.index(index, offsetBy: 3, limitedBy: b.endIndex) ?? b.endIndex
+            }
+            return value
+        }
+
+        func token(_ input: String) -> String {
+            var bytes: [Int64] = []
+            bytes.reserveCapacity(input.utf8.count)
+            for scalar in input.unicodeScalars {
+                let m = Int64(scalar.value)
+                if m < 128 {
+                    bytes.append(m)
+                } else if m < 2048 {
+                    bytes.append((m >> 6) | 192)
+                    bytes.append((m & 63) | 128)
+                } else {
+                    bytes.append((m >> 12) | 224)
+                    bytes.append(((m >> 6) & 63) | 128)
+                    bytes.append((m & 63) | 128)
+                }
+            }
+
+            var value: Int64 = 406644
+            for byte in bytes {
+                value += byte
+                value = RL(value, "+-a^+6")
+            }
+            value = RL(value, "+-3^+b+-f")
+            value ^= 3293161072
+            if value < 0 {
+                value = (value & 0x7FFFFFFF) + 0x80000000
+            }
+            value %= 1_000_000
+            return "(value).(value ^ 406644)"
+        }
+
+        func googleLanguageCode(_ language: String) -> String {
+            switch language.lowercased() {
+            case "chinese", "zh", "zh-cn", "zh-hans":
+                return "zh-CN"
+            case "traditional chinese", "zh-tw", "zh-hant":
+                return "zh-TW"
+            case "english", "en":
+                return "en"
+            case "japanese", "ja":
+                return "ja"
+            case "korean", "ko":
+                return "ko"
+            case "german", "de":
+                return "de"
+            case "french", "fr":
+                return "fr"
+            case "spanish", "es":
+                return "es"
+            default:
+                return language
+            }
+        }
+
+        var components = URLComponents(string: "https://translate.google.com/translate_a/single")
+        components?.queryItems = [
+            URLQueryItem(name: "client", value: "gtx"),
+            URLQueryItem(name: "sl", value: "auto"),
+            URLQueryItem(name: "tl", value: googleLanguageCode(targetLanguage)),
+            URLQueryItem(name: "hl", value: "en"),
+            URLQueryItem(name: "dt", value: "t"),
+            URLQueryItem(name: "tk", value: token(text)),
+            URLQueryItem(name: "q", value: text)
+        ]
+        guard let url = components?.url else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 10,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to build Google Translate URL."]
+            )
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 11,
+                userInfo: [NSLocalizedDescriptionKey: "Google Translate request failed."]
+            )
+        }
+
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let outer = object as? [Any],
+              let segments = outer.first as? [Any] else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 12,
+                userInfo: [NSLocalizedDescriptionKey: "Google Translate returned an unexpected response."]
+            )
+        }
+
+        let result = segments.compactMap { segment -> String? in
+            guard let pair = segment as? [Any],
+                  let translated = pair.first as? String else { return nil }
+            return translated
+        }.joined()
+
+        guard !result.isEmpty else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 13,
+                userInfo: [NSLocalizedDescriptionKey: "Google Translate returned no translation."]
+            )
+        }
+        return result
+    }
+
 }
 
 extension PDFDocumentViewController: BackForwardActionListDelegate {
