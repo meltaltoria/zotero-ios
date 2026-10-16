@@ -253,7 +253,7 @@ enum PDFTranslationService {
         targetLanguage: String,
         apiKey: String
     ) async throws -> String {
-        let cacheKey = "\(provider)|\(model)|\(targetLanguage)|\(text)" as NSString
+        let cacheKey = "\(provider)|\(model)|\(targetLanguage)|\(PDFTranslationSettingsStore.prompt)|\(text)" as NSString
         if let cached = cache.object(forKey: cacheKey) {
             return cached as String
         }
