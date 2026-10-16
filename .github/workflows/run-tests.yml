@@ -51,3 +51,4 @@ jobs:
           scheme: Zotero
           destination: platform=iOS Simulator,OS=${{ matrix.ios_version }},name=${{ matrix.device_name }}
           action: clean test
+          build-settings: CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
