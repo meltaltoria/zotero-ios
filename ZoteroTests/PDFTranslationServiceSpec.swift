@@ -35,4 +35,24 @@ final class PDFTranslationServiceSpec: XCTestCase {
             "916699.772271"
         )
     }
+
+    func testNoteHTMLPreservesOriginalAndTranslation() {
+        XCTAssertEqual(
+            PDFTranslationResultViewController.noteHTML(
+                original: "LiFePO4 < cathode & electrolyte",
+                translated: "磷酸铁锂 > 正极"
+            ),
+            "<p><strong>Original</strong><br>LiFePO4 &lt; cathode &amp; electrolyte</p><p><strong>Translation</strong><br>磷酸铁锂 &gt; 正极</p>"
+        )
+    }
+
+    func testNoteHTMLEscapesQuotesAndLineBreaks() {
+        XCTAssertEqual(
+            PDFTranslationResultViewController.noteHTML(
+                original: "\"SEI\"\nlayer",
+                translated: "'界面膜'"
+            ),
+            "<p><strong>Original</strong><br>&quot;SEI&quot;<br>layer</p><p><strong>Translation</strong><br>&#39;界面膜&#39;</p>"
+        )
+    }
 }
