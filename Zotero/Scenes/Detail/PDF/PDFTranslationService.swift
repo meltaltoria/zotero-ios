@@ -438,20 +438,28 @@ enum PDFTranslationService {
             switch language.lowercased() {
             case "chinese", "zh", "zh-cn", "zh-hans":
                 return "zh-CN"
+
             case "traditional chinese", "zh-tw", "zh-hant":
                 return "zh-TW"
+
             case "english", "en":
                 return "en"
+
             case "japanese", "ja":
                 return "ja"
+
             case "korean", "ko":
                 return "ko"
+
             case "german", "de":
                 return "de"
+
             case "french", "fr":
                 return "fr"
+
             case "spanish", "es":
                 return "es"
+
             default:
                 return language
             }
