@@ -1266,10 +1266,24 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         sourceRect: CGRect,
         translationCompletion: ((String) -> Void)? = nil
     ) {
+        let noteInsertionCompletion: (() -> Void)?
+        if let editor = NoteEditorViewController.activeEditor {
+            let html = PDFTranslationResultViewController.noteHTML(
+                original: original,
+                translated: translated
+            )
+            noteInsertionCompletion = { [weak editor] in
+                editor?.insertHTMLAtCurrentSelection(html)
+            }
+        } else {
+            noteInsertionCompletion = nil
+        }
+
         let controller = PDFTranslationResultViewController(
             originalText: original,
             translatedText: translated,
-            translationCompletion: translationCompletion
+            translationCompletion: translationCompletion,
+            noteInsertionCompletion: noteInsertionCompletion
         )
 
         controller.modalPresentationStyle = .popover
