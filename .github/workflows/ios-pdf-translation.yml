@@ -92,7 +92,7 @@ jobs:
               ONLY_ACTIVE_ARCH=YES \
               -resultBundlePath build/ci/ZoteroTests.xcresult \
               clean test \
-              | tee build/ci/xcodebuild.log
+              2>&1 | tee build/ci/xcodebuild.log
           else
             xcodebuild \
               -quiet \
@@ -107,7 +107,7 @@ jobs:
               DEVELOPMENT_TEAM= \
               ONLY_ACTIVE_ARCH=YES \
               clean build \
-              | tee build/ci/xcodebuild.log
+              2>&1 | tee build/ci/xcodebuild.log
           fi
 
       - name: Upload Xcode build log
