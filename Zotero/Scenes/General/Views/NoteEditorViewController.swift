@@ -14,6 +14,7 @@ import CocoaLumberjackSwift
 import RxSwift
 
 final class NoteEditorViewController: UIViewController {
+    static weak var activeEditor: NoteEditorViewController?
     fileprivate enum JSHandlers: String, CaseIterable {
         case messageHandler
         case logHandler
@@ -54,8 +55,15 @@ final class NoteEditorViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    deinit {
+        if Self.activeEditor === self {
+            Self.activeEditor = nil
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        Self.activeEditor = self
 
         switch viewModel.state.kind {
         case .edit(let key), .readOnly(let key):
@@ -100,6 +108,30 @@ final class NoteEditorViewController: UIViewController {
     }
 
     // MARK: - Actions
+
+    // Inserts HTML through note-editor's ProseMirror EditorCore instead of mutating the DOM directly.
+    // The bundled iOS note-editor exposes the current EditorInstance as window._currentEditorInstance.
+    func insertHTMLAtCurrentSelection(_ html: String) {
+        guard !viewModel.state.kind.readOnly else { return }
+
+        let payload = WebViewEncoder.encodeAsJSONForJavascript(["html": html])
+        let javascript = """
+        (() => {
+            const editor = window._currentEditorInstance?._editorCore;
+            if (!editor || !editor.view) {
+                return false;
+            }
+            const data = \(payload);
+            editor.insertHTML(editor.view.state.selection.to, data.html);
+            editor.view.focus();
+            return true;
+        })();
+        """
+
+        webView.call(javascript: javascript)
+            .subscribe()
+            .disposed(by: disposeBag)
+    }
 
     private func setupNavbarItems(isClosing: Bool) {
         if isClosing {
