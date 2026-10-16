@@ -28,7 +28,7 @@ The repository includes `.github/workflows/ios-pdf-translation.yml`.
 
 The Translation settings support an OpenAI-compatible `/chat/completions` endpoint. API keys are stored in the iOS Keychain. The default academic prompt preserves equations, chemical formulas, material names, abbreviations, citations, and technical terminology. Use `{{targetLanguage}}` in a custom prompt to insert the configured target language.
 
-This feature is intentionally kept on the `feature/pdf-translate-ios` branch until it has been tested on a physical iPad.
+This feature is intentionally kept on the `feature/pdf-translate-ios` branch until it has been tested on a physical iPad. See the [iPad installation and verification guide](docs/ipad-translation-verification.md) for signing setup and the acceptance checklist.
 
 ## Building
 
