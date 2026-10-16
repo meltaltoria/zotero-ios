@@ -1018,25 +1018,19 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
     /// plugin architecture because Zotero iOS does not support XUL/JavaScript plugins.
     func pdfViewController(
         _ pdfController: PDFViewController,
-        menuForText text: String,
+        menuForText glyphs: GlyphSequence,
         onPageView pageView: PDFPageView,
-        appearance: UIAppearance,
+        appearance: EditMenuAppearance,
         suggestedMenu: UIMenu
     ) -> UIMenu {
         let translateAction = UIAction(
             title: "Translate",
             image: UIImage(systemName: "character.book.closed")
         ) { [weak self] _ in
-            self?.translateSelectedText(text)
+            self?.translateSelectedText(glyphs.text)
         }
 
-        return UIMenu(
-            title: suggestedMenu.title,
-            image: suggestedMenu.image,
-            identifier: suggestedMenu.identifier,
-            options: suggestedMenu.options,
-            children: [translateAction] + suggestedMenu.children
-        )
+        return suggestedMenu.prepend([translateAction])
     }
 
     private func translateSelectedText(_ text: String) {
