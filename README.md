@@ -4,6 +4,8 @@
 
 This fork contains an experimental native PDF translation integration for iOS/iPadOS.
 
+Windows users without a paid Apple developer account can use the [free sideload build and installation guide](docs/windows-free-sideload.md). The `Free Account IPA` workflow builds an unsigned arm64 device IPA for personal signing; this variant uses private storage and excludes the share extension and iCloud entitlements.
+
 ### Current workflow
 
 1. Open a PDF in Zotero and select text.

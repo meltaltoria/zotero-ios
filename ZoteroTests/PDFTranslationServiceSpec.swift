@@ -7,6 +7,29 @@ import XCTest
 
 @testable import Zotero
 
+#if SIDELOAD
+final class SideloadStorageSpec: XCTestCase {
+    func testLoginCredentialPersistsWithoutSharedKeychainEntitlement() {
+        let storage = KeychainSecureStorage()
+        let previousToken = storage.apiToken
+        defer { storage.apiToken = previousToken }
+
+        let token = UUID().uuidString
+        storage.apiToken = token
+        XCTAssertEqual(storage.lastResultCode, 0)
+        XCTAssertEqual(KeychainSecureStorage().apiToken, token)
+    }
+
+    func testAttachmentStorageIsWritableWithoutAppGroups() throws {
+        let url = URL(fileURLWithPath: Files.appGroupPath).appendingPathComponent(UUID().uuidString)
+        let data = Data("sideload-storage".utf8)
+        try data.write(to: url, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: url) }
+        XCTAssertEqual(try Data(contentsOf: url), data)
+    }
+}
+#endif
+
 final class PDFTranslationServiceSpec: XCTestCase {
     func testCacheSeparatesSettingsContainingDelimiter() async throws {
         let session = makeTranslationSession()

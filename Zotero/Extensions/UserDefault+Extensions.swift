@@ -12,7 +12,8 @@ extension UserDefaults {
     // MARK: - Custom defaults
 
     static var zotero: UserDefaults {
-        return UserDefaults(suiteName: AppGroup.identifier) ?? UserDefaults.standard
+        guard let identifier = AppGroup.sharedContainerIdentifier else { return .standard }
+        return UserDefaults(suiteName: identifier) ?? .standard
     }
 
     // MARK: - Codable

@@ -12,7 +12,8 @@ struct Files {
     // MARK: - Base paths
 
     static var appGroupPath: String = {
-        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: AppGroup.identifier)?.path ?? Files.documentsRootPath
+        guard let identifier = AppGroup.sharedContainerIdentifier else { return Files.documentsRootPath }
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: identifier)?.path ?? Files.documentsRootPath
     }()
 
     static var documentsRootPath: String = {

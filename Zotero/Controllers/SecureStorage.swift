@@ -23,7 +23,7 @@ final class KeychainSecureStorage: SecureStorage {
 
     private static func createKeychain() -> KeychainSwift {
         let keychain = KeychainSwift()
-        keychain.accessGroup = AppGroup.identifier
+        keychain.accessGroup = AppGroup.sharedContainerIdentifier
         return keychain
     }
 
