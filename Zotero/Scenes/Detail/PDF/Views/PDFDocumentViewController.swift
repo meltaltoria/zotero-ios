@@ -54,6 +54,7 @@ final class PDFDocumentViewController: UIViewController {
     // Holds the zoom scale captured right before a corner-tap (fast scroll) page navigation, so it can be re-applied
     // to the page that becomes visible after the scroll. `nil` means there's no pending zoom to restore.
     private var pendingCornerTapZoomScale: CGFloat?
+    private var systemTranslationHost: UIViewController?
     var currentPage: UInt {
         return pdfController?.pageIndex ?? 0
     }
@@ -1067,6 +1068,20 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         let targetLanguage = PDFTranslationSettingsStore.targetLanguage
         let apiKey = PDFTranslationSettingsStore.apiKey
 
+        if provider == "apple" {
+            if #available(iOS 18.0, *) {
+                presentSystemTranslation(
+                    text: trimmed,
+                    sourceView: sourceView,
+                    sourceRect: sourceRect,
+                    translationCompletion: translationCompletion
+                )
+            } else {
+                presentTranslationError("Apple Translation requires iPadOS 18 or later.")
+            }
+            return
+        }
+
         if provider == "openai" && apiKey.isEmpty {
             presentTranslationSettings(
                 initialText: trimmed,
@@ -1188,6 +1203,54 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
     }
 
 
+
+    @available(iOS 18.0, *)
+    private func presentSystemTranslation(
+        text: String,
+        sourceView: UIView?,
+        sourceRect: CGRect,
+        translationCompletion: ((String) -> Void)?
+    ) {
+        removeSystemTranslationHost()
+
+        let host = PDFSystemTranslationHostController(
+            text: text,
+            replacementAction: translationCompletion
+        )
+        host.setOnDismiss { [weak self] in
+            self?.removeSystemTranslationHost()
+        }
+
+        addChild(host)
+        view.addSubview(host.view)
+
+        let anchor = sourceRect == .zero ? (sourceView ?? view).bounds : sourceRect
+        let point = CGPoint(x: anchor.midX, y: anchor.midY)
+        host.view.frame = CGRect(x: point.x, y: point.y, width: 2, height: 2)
+        host.didMove(toParent: self)
+        systemTranslationHost = host
+
+        DispatchQueue.main.async {
+            host.presentTranslation()
+        }
+    }
+
+    private func removeSystemTranslationHost() {
+        guard let host = systemTranslationHost else { return }
+        if #available(iOS 18.0, *) {
+            (host as? PDFSystemTranslationHostController)?.cancelTranslation()
+        }
+        host.willMove(toParent: nil)
+        host.view.removeFromSuperview()
+        host.removeFromParent()
+        systemTranslationHost = nil
+    }
+
+    private func presentTranslationError(_ message: String) {
+        let alert = UIAlertController(title: "Translation", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
 
     private func presentTranslationResult(
         original: String,
