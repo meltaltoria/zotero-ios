@@ -9,11 +9,11 @@
 import Foundation
 import Security
 import SwiftUI
+import Translation
 
 enum PDFTranslationSettingsStore {
     private static let service = "org.zotero.ios.Zotero.pdf-translation"
     private static let account = "api-key"
-
 
     static var provider: String {
         get {
@@ -26,8 +26,7 @@ enum PDFTranslationSettingsStore {
 
     static var endpoint: String {
         get {
-            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.endpoint")
-                ?? "https://api.openai.com/v1"
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.endpoint") ?? "https://api.openai.com/v1"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.endpoint")
@@ -36,8 +35,7 @@ enum PDFTranslationSettingsStore {
 
     static var model: String {
         get {
-            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.model")
-                ?? "gpt-4o-mini"
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.model") ?? "gpt-4o-mini"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.model")
@@ -46,8 +44,7 @@ enum PDFTranslationSettingsStore {
 
     static var targetLanguage: String {
         get {
-            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.targetLanguage")
-                ?? "Chinese"
+            UserDefaults.standard.string(forKey: "ZoteroPDFTranslate.targetLanguage") ?? "Chinese"
         }
         set {
             UserDefaults.standard.set(newValue, forKey: "ZoteroPDFTranslate.targetLanguage")
@@ -144,8 +141,7 @@ enum PDFTranslationSettingsStore {
 
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
-        guard status == errSecSuccess,
-              let data = result as? Data else {
+        guard status == errSecSuccess, let data = result as? Data else {
             return nil
         }
         return String(data: data, encoding: .utf8)
@@ -193,12 +189,7 @@ final class PDFSystemTranslationHostController: UIHostingController<PDFSystemTra
     init(text: String) {
         let bridge = PDFSystemTranslationBridge()
         self.bridge = bridge
-        super.init(
-            rootView: PDFSystemTranslationView(
-                bridge: bridge,
-                text: text
-            )
-        )
+        super.init(rootView: PDFSystemTranslationView(bridge: bridge, text: text))
         view.backgroundColor = .clear
     }
 
@@ -224,12 +215,14 @@ enum PDFTranslationService {
         let cache = NSCache<NSString, NSString>()
         cache.countLimit = 128
         return cache
-    }
+    }()
+
     private struct Request: Encodable {
         struct Message: Encodable {
             let role: String
             let content: String
         }
+
         let model: String
         let messages: [Message]
         let temperature: Double
@@ -240,8 +233,10 @@ enum PDFTranslationService {
             struct Message: Decodable {
                 let content: String
             }
+
             let message: Message
         }
+
         let choices: [Choice]
     }
 
@@ -253,19 +248,57 @@ enum PDFTranslationService {
         targetLanguage: String,
         apiKey: String
     ) async throws -> String {
-        let cacheKey = "\(provider)|\(model)|\(targetLanguage)|\(PDFTranslationSettingsStore.prompt)|\(text)" as NSString
+        let cacheKey = [
+            provider,
+            endpoint,
+            model,
+            targetLanguage,
+            PDFTranslationSettingsStore.prompt,
+            text
+        ].joined(separator: "|") as NSString
+
         if let cached = cache.object(forKey: cacheKey) {
             return cached as String
         }
-        if provider == "google" {
-            let result = try await translateWithGoogle(text: text, targetLanguage: targetLanguage)
-            cache.setObject(result as NSString, forKey: cacheKey)
-            return result
+
+        let result: String
+        switch provider {
+        case "google":
+            result = try await translateWithGoogle(text: text, targetLanguage: targetLanguage)
+
+        case "openai":
+            result = try await translateWithOpenAICompatible(
+                text: text,
+                endpoint: endpoint,
+                model: model,
+                targetLanguage: targetLanguage,
+                apiKey: apiKey
+            )
+
+        default:
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "Unsupported translation provider: \(provider)"]
+            )
         }
+
+        cache.setObject(result as NSString, forKey: cacheKey)
+        return result
+    }
+
+    private static func translateWithOpenAICompatible(
+        text: String,
+        endpoint: String,
+        model: String,
+        targetLanguage: String,
+        apiKey: String
+    ) async throws -> String {
         var base = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         while base.hasSuffix("/") {
             base.removeLast()
         }
+
         let urlString = base.hasSuffix("/chat/completions") ? base : "\(base)/chat/completions"
         guard let url = URL(string: urlString) else {
             throw NSError(
@@ -294,7 +327,6 @@ enum PDFTranslationService {
             ],
             temperature: 0
         )
-
         request.httpBody = try JSONEncoder().encode(body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -324,7 +356,6 @@ enum PDFTranslationService {
                 userInfo: [NSLocalizedDescriptionKey: "The translation service returned no text."]
             )
         }
-        cache.setObject(content as NSString, forKey: cacheKey)
         return content
     }
 
@@ -336,20 +367,20 @@ enum PDFTranslationService {
             var index = 0
 
             while index + 2 < chars.count {
-        let c0 = chars[index]
-        let c1 = chars[index + 1]
-        let c2 = chars[index + 2]
+                let c0 = chars[index]
+                let c1 = chars[index + 1]
+                let c2 = chars[index + 2]
 
-        let shift: UInt32
-        if c2 >= Character("a") {
-            shift = UInt32(c2.asciiValue ?? 0) - 87
-        } else {
-            shift = UInt32(String(c2)) ?? 0
-        }
+                let shift: UInt32
+                if c2 >= Character("a") {
+                    shift = UInt32(c2.asciiValue ?? 0) - 87
+                } else {
+                    shift = UInt32(String(c2)) ?? 0
+                }
 
-        let shifted = c1 == "+" ? value >> shift : value << shift
-        value = c0 == "+" ? value &+ shifted : value ^ shifted
-        index += 3
+                let shifted = c1 == "+" ? value >> shift : value << shift
+                value = c0 == "+" ? value &+ shifted : value ^ shifted
+                index += 3
             }
 
             return value
@@ -357,7 +388,7 @@ enum PDFTranslationService {
 
         var bytes: [UInt32] = []
         bytes.reserveCapacity(input.utf8.count)
-    
+
         for scalar in input.unicodeScalars {
             let value = scalar.value
             if value < 128 {
@@ -376,7 +407,7 @@ enum PDFTranslationService {
                 bytes.append((value & 63) | 128)
             }
         }
-    
+
         var value: UInt32 = 406644
         for byte in bytes {
             value = value &+ byte
@@ -384,28 +415,113 @@ enum PDFTranslationService {
         }
         value = rotate(value, "+-3^+b+-f")
         value ^= 3293161072
-    
+
         let first = value % 1_000_000
         return "\(first).\(first ^ 406644)"
-            }
+    }
 
     private static func translateWithGoogle(text: String, targetLanguage: String) async throws -> String {
         let maxChunkLength = 1800
         if text.count > maxChunkLength {
             let chunks = splitGoogleText(text, maxLength: maxChunkLength)
-            var translations: [String] = []
-            translations.reserveCapacity(chunks.count)
+            var translatedChunks: [String] = []
+            translatedChunks.reserveCapacity(chunks.count)
 
             for chunk in chunks {
-                translations.append(
+                translatedChunks.append(
                     try await translateWithGoogle(text: chunk, targetLanguage: targetLanguage)
                 )
             }
-            return translations.joined(separator: "\n\n")
+            return translatedChunks.joined(separator: "\n\n")
         }
 
+        func googleLanguageCode(_ language: String) -> String {
+            switch language.lowercased() {
+            case "chinese", "zh", "zh-cn", "zh-hans":
+                return "zh-CN"
+            case "traditional chinese", "zh-tw", "zh-hant":
+                return "zh-TW"
+            case "english", "en":
+                return "en"
+            case "japanese", "ja":
+                return "ja"
+            case "korean", "ko":
+                return "ko"
+            case "german", "de":
+                return "de"
+            case "french", "fr":
+                return "fr"
+            case "spanish", "es":
+                return "es"
+            default:
+                return language
+            }
+        }
+
+        var components = URLComponents(string: "https://translate.google.com/translate_a/single")
+        components?.queryItems = [
+            URLQueryItem(name: "client", value: "gtx"),
+            URLQueryItem(name: "sl", value: "auto"),
+            URLQueryItem(name: "tl", value: googleLanguageCode(targetLanguage)),
+            URLQueryItem(name: "hl", value: "en"),
+            URLQueryItem(name: "dt", value: "t"),
+            URLQueryItem(name: "tk", value: googleToken(text)),
+            URLQueryItem(name: "q", value: text)
+        ]
+
+        guard let url = components?.url else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 10,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to build Google Translate URL."]
+            )
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 30
+        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200..<300).contains(httpResponse.statusCode) else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 11,
+                userInfo: [NSLocalizedDescriptionKey: "Google Translate request failed."]
+            )
+        }
+
+        let object = try JSONSerialization.jsonObject(with: data)
+        guard let outer = object as? [Any], let segments = outer.first as? [Any] else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 12,
+                userInfo: [NSLocalizedDescriptionKey: "Google Translate returned an unexpected response."]
+            )
+        }
+
+        let result = segments.compactMap { segment -> String? in
+            guard let pair = segment as? [Any], let translated = pair.first as? String else {
+                return nil
+            }
+            return translated
+        }.joined()
+
+        guard !result.isEmpty else {
+            throw NSError(
+                domain: "ZoteroPDFTranslate",
+                code: 13,
+                userInfo: [NSLocalizedDescriptionKey: "Google Translate returned no translation."]
+            )
+        }
+        return result
+    }
+
     private static func splitGoogleText(_ text: String, maxLength: Int) -> [String] {
-        guard text.count > maxLength else { return [text] }
+        guard text.count > maxLength else {
+            return [text]
+        }
 
         let paragraphs = text.components(separatedBy: "\n\n")
         var chunks: [String] = []
@@ -446,87 +562,4 @@ enum PDFTranslationService {
         appendCurrent()
         return chunks
     }
-
-        func googleLanguageCode(_ language: String) -> String {
-            switch language.lowercased() {
-            case "chinese", "zh", "zh-cn", "zh-hans":
-                return "zh-CN"
-            case "traditional chinese", "zh-tw", "zh-hant":
-                return "zh-TW"
-            case "english", "en":
-                return "en"
-            case "japanese", "ja":
-                return "ja"
-            case "korean", "ko":
-                return "ko"
-            case "german", "de":
-                return "de"
-            case "french", "fr":
-                return "fr"
-            case "spanish", "es":
-                return "es"
-            default:
-                return language
-            }
-        }
-
-        var components = URLComponents(string: "https://translate.google.com/translate_a/single")
-        components?.queryItems = [
-            URLQueryItem(name: "client", value: "gtx"),
-            URLQueryItem(name: "sl", value: "auto"),
-            URLQueryItem(name: "tl", value: googleLanguageCode(targetLanguage)),
-            URLQueryItem(name: "hl", value: "en"),
-            URLQueryItem(name: "dt", value: "t"),
-            URLQueryItem(name: "tk", value: googleToken(text)),
-            URLQueryItem(name: "q", value: text)
-        ]
-        guard let url = components?.url else {
-            throw NSError(
-                domain: "ZoteroPDFTranslate",
-                code: 10,
-                userInfo: [NSLocalizedDescriptionKey: "Unable to build Google Translate URL."]
-            )
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.timeoutInterval = 30
-        request.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
-            throw NSError(
-                domain: "ZoteroPDFTranslate",
-                code: 11,
-                userInfo: [NSLocalizedDescriptionKey: "Google Translate request failed."]
-            )
-        }
-
-        let object = try JSONSerialization.jsonObject(with: data)
-        guard let outer = object as? [Any],
-              let segments = outer.first as? [Any] else {
-            throw NSError(
-                domain: "ZoteroPDFTranslate",
-                code: 12,
-                userInfo: [NSLocalizedDescriptionKey: "Google Translate returned an unexpected response."]
-            )
-        }
-
-        let result = segments.compactMap { segment -> String? in
-            guard let pair = segment as? [Any],
-                  let translated = pair.first as? String else { return nil }
-            return translated
-        }.joined()
-
-        guard !result.isEmpty else {
-            throw NSError(
-                domain: "ZoteroPDFTranslate",
-                code: 13,
-                userInfo: [NSLocalizedDescriptionKey: "Google Translate returned no translation."]
-            )
-        }
-        return result
-    }
-
 }
