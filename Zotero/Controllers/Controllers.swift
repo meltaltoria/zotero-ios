@@ -56,7 +56,7 @@ final class Controllers {
     private static func apiConfiguration(schemaVersion: Int) -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
         configuration.httpAdditionalHeaders = ["Zotero-API-Version": ApiConstants.version.description, "Zotero-Schema-Version": schemaVersion]
-        configuration.sharedContainerIdentifier = AppGroup.identifier
+        configuration.sharedContainerIdentifier = AppGroup.sharedContainerIdentifier
         configuration.timeoutIntervalForRequest = ApiConstants.requestTimeout
         configuration.timeoutIntervalForResource = ApiConstants.resourceTimeout
         return configuration

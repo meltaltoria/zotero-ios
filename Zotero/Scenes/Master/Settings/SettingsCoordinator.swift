@@ -25,6 +25,7 @@ protocol SettingsCoordinatorDelegate: AnyObject {
     func showDebugging()
     func showSavingSettings()
     func showGeneralSettings()
+    func showTranslationSettings()
     func dismiss()
     func showLogoutAlert(viewModel: ViewModel<SyncSettingsActionHandler>)
     func showSchemePicker(viewModel: ViewModel<SyncSettingsActionHandler>)
@@ -331,6 +332,36 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
         let view = GeneralSettingsView().environmentObject(viewModel)
         self.pushDefaultSize(view: view)
     }
+
+    func showTranslationSettings() {
+        let view = PDFTranslationSettingsView(
+            provider: PDFTranslationSettingsStore.provider,
+            apiKey: PDFTranslationSettingsStore.apiKey,
+            endpoint: PDFTranslationSettingsStore.endpoint,
+            model: PDFTranslationSettingsStore.model,
+            targetLanguage: PDFTranslationSettingsStore.targetLanguage,
+            prompt: PDFTranslationSettingsStore.prompt,
+            saveAction: { provider, apiKey, endpoint, model, targetLanguage, prompt in
+                if apiKey.isEmpty {
+                    PDFTranslationSettingsStore.deleteAPIKey()
+                } else {
+                    try PDFTranslationSettingsStore.setAPIKey(apiKey)
+                }
+                PDFTranslationSettingsStore.provider = provider
+                PDFTranslationSettingsStore.endpoint = endpoint
+                PDFTranslationSettingsStore.model = model
+                PDFTranslationSettingsStore.targetLanguage = targetLanguage
+                PDFTranslationSettingsStore.prompt = prompt
+            },
+            clearAPIKeyAction: {
+                PDFTranslationSettingsStore.deleteAPIKey()
+            },
+            closeAction: { [weak self] in
+                self?.navigationController?.popViewController(animated: true)
+            }
+        )
+        self.pushDefaultSize(view: view)
+    }
     
     func showAnnotationToolsSettings() {
         let state = AnnotationToolsSettingsState(pdfAnnotationTools: Defaults.shared.pdfAnnotationTools, htmlEpubAnnotationTools: Defaults.shared.htmlEpubAnnotationTools)
@@ -384,6 +415,153 @@ extension SettingsCoordinator: SettingsCoordinatorDelegate {
         controller.transitioningDelegate = self.transitionDelegate
         self.transitionDelegate = nil
         self.navigationController?.present(controller, animated: true, completion: nil)
+    }
+}
+
+private struct PDFTranslationSettingsView: View {
+    @State private var provider: String
+    @State private var apiKey: String
+    @State private var endpoint: String
+    @State private var model: String
+    @State private var targetLanguage: String
+    @State private var prompt: String
+    @State private var saveError: String?
+
+    let saveAction: (String, String, String, String, String, String) throws -> Void
+    let clearAPIKeyAction: () -> Void
+    let closeAction: () -> Void
+
+    init(
+        provider: String,
+        apiKey: String,
+        endpoint: String,
+        model: String,
+        targetLanguage: String,
+        prompt: String,
+        saveAction: @escaping (String, String, String, String, String, String) throws -> Void,
+        clearAPIKeyAction: @escaping () -> Void,
+        closeAction: @escaping () -> Void
+    ) {
+        _provider = State(initialValue: provider)
+        _apiKey = State(initialValue: apiKey)
+        _endpoint = State(initialValue: endpoint)
+        _model = State(initialValue: model)
+        _targetLanguage = State(initialValue: targetLanguage)
+        _prompt = State(initialValue: prompt)
+        self.saveAction = saveAction
+        self.clearAPIKeyAction = clearAPIKeyAction
+        self.closeAction = closeAction
+    }
+
+    private var providerDescription: String {
+        switch provider {
+        case "google":
+            return "Google Translate uses the web translation endpoint and does not require an API key."
+
+        case "apple":
+            return "Apple Translation uses the system translation UI on iPadOS 18 or later."
+
+        default:
+            return "OpenAI-compatible mode sends the selected text to the endpoint configured above."
+        }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Service", selection: $provider) {
+                    Text("Google Translate").tag("google")
+                    Text("Apple Translation").tag("apple")
+                    Text("OpenAI-compatible API").tag("openai")
+                }
+
+                if provider == "openai" {
+                    SecureField("API Key", text: $apiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+
+                    TextField("Endpoint", text: $endpoint)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .keyboardType(.URL)
+
+                    TextField("Model", text: $model)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                }
+
+                TextField("Target language", text: $targetLanguage)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled(true)
+            } header: {
+                Text("Translation Service")
+            } footer: {
+                Text(providerDescription)
+            }
+
+            Section {
+                TextEditor(text: $prompt)
+                    .frame(minHeight: 180)
+                    .font(.body)
+            } header: {
+                Text("Academic Prompt")
+            } footer: {
+                Text("Use {{targetLanguage}} where the target language should be inserted.")
+            }
+
+            Section {
+                Button("Save") {
+                    let normalizedProvider = provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let normalizedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedTarget = targetLanguage.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    guard normalizedProvider == "google" || normalizedProvider == "apple" || normalizedProvider == "openai",
+                          !normalizedTarget.isEmpty,
+                          !normalizedPrompt.isEmpty else {
+                        saveError = "Choose a translation service and enter a target language and prompt."
+                        return
+                    }
+
+                    if normalizedProvider == "openai" && (normalizedEndpoint.isEmpty || normalizedModel.isEmpty) {
+                        saveError = "Enter an endpoint and model for the OpenAI-compatible service."
+                        return
+                    }
+
+                    do {
+                        try saveAction(
+                            normalizedProvider,
+                            apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+                            normalizedEndpoint,
+                            normalizedModel,
+                            normalizedTarget,
+                            normalizedPrompt
+                        )
+                        closeAction()
+                    } catch {
+                        saveError = error.localizedDescription
+                    }
+                }
+
+                if !apiKey.isEmpty {
+                    Button("Clear API Key", role: .destructive) {
+                        apiKey = ""
+                        clearAPIKeyAction()
+                    }
+                }
+            }
+        }
+        .navigationBarTitle("PDF Translation", displayMode: .inline)
+        .navigationBarItems(leading: Button("Close", action: closeAction))
+        .alert("Unable to save translation settings", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
     }
 }
 

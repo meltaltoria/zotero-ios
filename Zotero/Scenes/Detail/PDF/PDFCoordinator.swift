@@ -99,6 +99,19 @@ final class PDFCoordinator: ReaderCoordinator {
               let parentNavigationController = parentCoordinator?.navigationController
         else { return }
 
+        #if SIDELOAD
+        let store = PDFKitAnnotationStore(
+            attachmentKey: key, libraryId: libraryId, userId: userId,
+            dbStorage: userControllers.dbStorage, schemaController: controllers.schemaController, dateParser: controllers.dateParser
+        )
+        let reader = PDFKitReaderViewController(
+            url: url,
+            title: try? userControllers.dbStorage.perform(request: ReadFilenameDbRequest(libraryId: libraryId, key: key), on: .main),
+            store: store, initialPage: page, annotationKey: preselectedAnnotationKey, previewRects: previewRects
+        )
+        userControllers.lastReadWatcher.submit(key: key, libraryId: libraryId, date: Date())
+        navigationController?.setViewControllers([reader], animated: false)
+        #else
         let settings = Defaults.shared.pdfSettings
         let displayName = Defaults.shared.displayName
         if userId == 0 {
@@ -142,6 +155,7 @@ final class PDFCoordinator: ReaderCoordinator {
         handler.delegate = controller
 
         navigationController?.setViewControllers([controller], animated: false)
+        #endif
     }
 }
 

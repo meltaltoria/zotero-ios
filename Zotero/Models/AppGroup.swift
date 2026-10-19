@@ -9,6 +9,20 @@
 import Foundation
 
 struct AppGroup {
+    // Personal-team sideload builds keep all data inside the application's own sandbox.
+    static var sharedContainerIdentifier: String? {
+#if SIDELOAD
+        return nil
+#else
+        return identifier
+#endif
+    }
+
+    static var cookieStorage: HTTPCookieStorage {
+        guard let identifier = sharedContainerIdentifier else { return .shared }
+        return HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: identifier)
+    }
+
     static var identifier: String {
         return "group.org.zotero.ios.Zotero"
     }

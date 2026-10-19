@@ -85,7 +85,7 @@ class WebViewHandler: NSObject {
     // MARK: - Lifecycle
 
     init(webView: WKWebView, javascriptHandlers: [String]?) {
-        let storage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: AppGroup.identifier)
+        let storage = AppGroup.cookieStorage
         storage.cookieAcceptPolicy = .always
 
         let configuration = URLSessionConfiguration.default

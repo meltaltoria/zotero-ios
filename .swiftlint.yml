@@ -1,3 +1,8 @@
+excluded:
+  # CI stores Swift package checkouts under this generated build directory.
+  - build
+  - DerivedData
+
 only_rules:
   # default rules
   - block_based_kvo

@@ -54,6 +54,9 @@ final class PDFDocumentViewController: UIViewController {
     // Holds the zoom scale captured right before a corner-tap (fast scroll) page navigation, so it can be re-applied
     // to the page that becomes visible after the scroll. `nil` means there's no pending zoom to restore.
     private var pendingCornerTapZoomScale: CGFloat?
+    private var systemTranslationHost: UIViewController?
+    private var translationTask: Task<Void, Never>?
+    private var translationRequestID: UUID?
     var currentPage: UInt {
         return pdfController?.pageIndex ?? 0
     }
@@ -125,6 +128,7 @@ final class PDFDocumentViewController: UIViewController {
     }
 
     deinit {
+        translationTask?.cancel()
         disableAnnotationTools()
         pdfController?.annotationStateManager.remove(self)
         DDLogInfo("PDFDocumentViewController deinitialized")
@@ -841,8 +845,37 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
         appearance: EditMenuAppearance,
         suggestedMenu: UIMenu
     ) -> UIMenu {
-        guard let annotation = annotations.first,
-              annotation.type == .freeText,
+        guard let annotation = annotations.first else { return suggestedMenu }
+
+        // Zotero-synced highlights and underlines can be translated directly into their annotation comment.
+        if annotation.type == .highlight || annotation.type == .underline,
+           let key = annotation.key,
+           let pdfAnnotation = viewModel.state.annotation(for: .init(key: key, type: .database)),
+           let text = pdfAnnotation.text,
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let translateAction = UIAction(
+                title: "Translate Annotation",
+                image: UIImage(systemName: "character.book.closed")
+            ) { [weak self, weak viewModel] _ in
+                let rect = pageView.convert(annotation.boundingBox, from: pageView.pdfCoordinateSpace)
+                self?.translateSelectedText(
+                    text,
+                    sourceView: pageView,
+                    sourceRect: rect
+                ) { [weak viewModel] translated in
+                    viewModel?.process(
+                        action: .setComment(
+                            key: key,
+                            comment: NSAttributedString(string: translated)
+                        )
+                    )
+                }
+            }
+
+            return suggestedMenu.replacingChildren([translateAction] + suggestedMenu.children)
+        }
+
+        guard annotation.type == .freeText,
               let annotationView = pageView.visibleAnnotationViews.first(where: { $0.annotation == annotation }) as? FreeTextAnnotationView
         else { return UIMenu(children: []) }
 
@@ -878,7 +911,15 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
     }
 
     func pdfViewController(_ sender: PDFViewController, menuForText glyphs: GlyphSequence, onPageView pageView: PDFPageView, appearance: EditMenuAppearance, suggestedMenu: UIMenu) -> UIMenu {
-        return filter(
+        let translateAction = UIAction(
+            title: "Translate",
+            image: UIImage(systemName: "character.book.closed")
+        ) { [weak self] _ in
+            let rect = pageView.convert(glyphs.boundingBox, from: pageView.pdfCoordinateSpace)
+            self?.translateSelectedText(glyphs.text, sourceView: pageView, sourceRect: rect)
+        }
+
+        let filteredMenu = filter(
             menu: suggestedMenu,
             actionPredicate: { menuId, action -> UIMenuElement? in
                 return replace(action: action, forMenuId: menuId)
@@ -899,6 +940,8 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
                 }
             }
         )
+
+        return filteredMenu.replacingChildren([translateAction] + filteredMenu.children)
 
         func replace(action: UIAction, forMenuId menuId: UIMenu.Identifier) -> UIMenuElement? {
             switch menuId {
@@ -1011,6 +1054,256 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
 
     func pdfViewController(_ pdfController: PDFViewController, didSelectText text: String, with glyphs: [Glyph], at rect: CGRect, on pageView: PDFPageView) {
         parentDelegate?.didSelectText(text)
+    }
+
+    private func translateSelectedText(
+        _ text: String,
+        sourceView: UIView? = nil,
+        sourceRect: CGRect = .zero,
+        translationCompletion: ((String) -> Void)? = nil
+    ) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let provider = PDFTranslationSettingsStore.provider
+        let endpoint = PDFTranslationSettingsStore.endpoint
+        let model = PDFTranslationSettingsStore.model
+        let targetLanguage = PDFTranslationSettingsStore.targetLanguage
+        let apiKey = PDFTranslationSettingsStore.apiKey
+
+        if provider == "apple" {
+            if translationCompletion != nil {
+                presentTranslationError("Apple Translation can translate the annotation, but saving the result to the annotation comment is not supported yet. Use Google or OpenAI-compatible mode for that action.")
+            } else if #available(iOS 18.0, *) {
+                presentSystemTranslation(
+                    text: trimmed,
+                    sourceView: sourceView,
+                    sourceRect: sourceRect
+                )
+            } else {
+                presentTranslationError("Apple Translation requires iPadOS 18 or later.")
+            }
+            return
+        }
+
+        if provider == "openai" && apiKey.isEmpty {
+            presentTranslationSettings(
+                initialText: trimmed,
+                endpoint: endpoint,
+                model: model,
+                targetLanguage: targetLanguage,
+                sourceView: sourceView,
+                sourceRect: sourceRect,
+                translationCompletion: translationCompletion
+            )
+            return
+        }
+
+        translationTask?.cancel()
+        let requestID = UUID()
+        translationRequestID = requestID
+
+        let alert = UIAlertController(title: "Translating…", message: "Please wait.", preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.translationRequestID = nil
+            self?.translationTask?.cancel()
+            self?.translationTask = nil
+        })
+        present(alert, animated: true)
+
+        translationTask = Task { [weak self, weak alert] in
+            do {
+                let translated = try await PDFTranslationService.translate(
+                    text: trimmed,
+                    provider: provider,
+                    endpoint: endpoint,
+                    model: model,
+                    targetLanguage: targetLanguage,
+                    apiKey: apiKey
+                )
+                try Task.checkCancellation()
+                await MainActor.run {
+                    guard self?.translationRequestID == requestID else { return }
+                    alert?.dismiss(animated: true) {
+                        guard self?.translationRequestID == requestID else { return }
+                        self?.translationTask = nil
+                        self?.presentTranslationResult(
+                            original: trimmed,
+                            translated: translated,
+                            sourceView: sourceView,
+                            sourceRect: sourceRect,
+                            translationCompletion: translationCompletion
+                        )
+                    }
+                }
+            } catch {
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    guard self?.translationRequestID == requestID else { return }
+                    alert?.dismiss(animated: true) {
+                        guard self?.translationRequestID == requestID else { return }
+                        self?.translationTask = nil
+                        let result = UIAlertController(
+                            title: "Translation failed",
+                            message: error.localizedDescription,
+                            preferredStyle: .alert
+                        )
+                        result.addAction(UIAlertAction(title: "OK", style: .default))
+                        self?.present(result, animated: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func presentTranslationSettings(
+        initialText: String,
+        endpoint: String,
+        model: String,
+        targetLanguage: String,
+        sourceView: UIView?,
+        sourceRect: CGRect,
+        translationCompletion: ((String) -> Void)? = nil
+    ) {
+        let alert = UIAlertController(
+            title: "PDF Translation Setup",
+            message: "Use Google for a free web translation, or openai for an OpenAI-compatible API.",
+            preferredStyle: .alert
+        )
+        alert.addTextField { field in
+            field.placeholder = "Service: google or openai"
+            field.text = PDFTranslationSettingsStore.provider
+        }
+        alert.addTextField { field in
+            field.placeholder = "API Key (required for openai)"
+            field.text = PDFTranslationSettingsStore.apiKey
+            field.isSecureTextEntry = true
+        }
+        alert.addTextField { field in
+            field.placeholder = "Endpoint"
+            field.text = endpoint
+            field.keyboardType = .URL
+        }
+        alert.addTextField { field in
+            field.placeholder = "Model"
+            field.text = model
+        }
+        alert.addTextField { field in
+            field.placeholder = "Target language"
+            field.text = targetLanguage
+        }
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Save & Translate", style: .default) { [weak self, weak alert] _ in
+            guard let fields = alert?.textFields, fields.count >= 5 else { return }
+            let provider = fields[0].text?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? "google"
+            let key = fields[1].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let endpoint = fields[2].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let model = fields[3].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let target = fields[4].text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard provider == "google" || provider == "openai", !endpoint.isEmpty, !model.isEmpty, !target.isEmpty else { return }
+
+            PDFTranslationSettingsStore.provider = provider
+            if key.isEmpty {
+                PDFTranslationSettingsStore.deleteAPIKey()
+            } else {
+                try? PDFTranslationSettingsStore.setAPIKey(key)
+            }
+            PDFTranslationSettingsStore.endpoint = endpoint
+            PDFTranslationSettingsStore.model = model
+            PDFTranslationSettingsStore.targetLanguage = target
+
+            self?.translateSelectedText(
+                initialText,
+                sourceView: sourceView,
+                sourceRect: sourceRect,
+                translationCompletion: translationCompletion
+            )
+        })
+        present(alert, animated: true)
+    }
+
+    @available(iOS 18.0, *)
+    private func presentSystemTranslation(
+        text: String,
+        sourceView: UIView?,
+        sourceRect: CGRect
+    ) {
+        removeSystemTranslationHost()
+
+        let host = PDFSystemTranslationHostController(text: text)
+        host.setOnDismiss { [weak self] in
+            self?.removeSystemTranslationHost()
+        }
+
+        addChild(host)
+        view.addSubview(host.view)
+
+        let anchor: CGRect
+        if let sourceView {
+            anchor = sourceRect == .zero
+                ? view.convert(sourceView.bounds, from: sourceView)
+                : view.convert(sourceRect, from: sourceView)
+        } else {
+            anchor = view.bounds
+        }
+        let point = CGPoint(x: anchor.midX, y: anchor.midY)
+        host.view.frame = CGRect(x: point.x, y: point.y, width: 2, height: 2)
+        host.didMove(toParent: self)
+        systemTranslationHost = host
+
+        DispatchQueue.main.async {
+            host.presentTranslation()
+        }
+    }
+
+    private func removeSystemTranslationHost() {
+        guard let host = systemTranslationHost else { return }
+        systemTranslationHost = nil
+        if #available(iOS 18.0, *) {
+            (host as? PDFSystemTranslationHostController)?.cancelTranslation()
+        }
+        host.willMove(toParent: nil)
+        host.view.removeFromSuperview()
+        host.removeFromParent()
+    }
+
+    private func presentTranslationError(_ message: String) {
+        let alert = UIAlertController(title: "Translation", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+    }
+
+    private func presentTranslationResult(
+        original: String,
+        translated: String,
+        sourceView: UIView?,
+        sourceRect: CGRect,
+        translationCompletion: ((String) -> Void)? = nil
+    ) {
+        let noteInsertionCompletion: (() -> Void)?
+        if let editor = NoteEditorViewController.activeEditor,
+           editor.canInsertTranslation(in: view.window?.windowScene) {
+            let html = PDFTranslationResultViewController.noteHTML(
+                original: original,
+                translated: translated
+            )
+            noteInsertionCompletion = { [weak self, weak editor] in
+                guard let self, let editor,
+                      editor.canInsertTranslation(in: self.view.window?.windowScene) else { return }
+                editor.insertHTMLAtCurrentSelection(html)
+            }
+        } else {
+            noteInsertionCompletion = nil
+        }
+
+        let controller = PDFTranslationResultViewController(
+            originalText: original,
+            translatedText: translated,
+            translationCompletion: translationCompletion,
+            noteInsertionCompletion: noteInsertionCompletion
+        )
+
+        PDFTranslationFloatingController.show(controller, in: self)
     }
 
     func pdfViewController(_ pdfController: PDFViewController, didFinishRenderTaskFor pageView: PDFPageView, error: (any Error)?) {

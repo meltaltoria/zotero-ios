@@ -34,7 +34,7 @@ TMP_DIR=$(mktemp -d)
 echo "Created temp dir: $TMP_DIR"
 
 echo "Downloading build from: $DOWNLOAD_URL"
-curl -L "$DOWNLOAD_URL" -o "$TMP_DIR/build.zip"
+curl --fail --location --retry 4 --retry-all-errors --retry-delay 3 --retry-max-time 120 --connect-timeout 20 --max-time 180 "$DOWNLOAD_URL" -o "$TMP_DIR/build.zip"
 
 echo "Unzipping..."
 unzip -q "$TMP_DIR/build.zip" -d "$TMP_DIR/build"

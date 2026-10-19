@@ -228,6 +228,7 @@ extension AppDelegate: UIApplicationDelegate {
             // TODO: - Remove when no longer necessary (hopefully when Xcode 26 is out of beta)
             nw_tls_create_options()
         }
+        #if !SIDELOAD
         if let key = Licenses.shared.pspdfkitKey {
             PSPDFKit.SDK.setLicenseKey(key)
         }
@@ -240,6 +241,7 @@ extension AppDelegate: UIApplicationDelegate {
         PSPDFKit.SDK.shared.styleManager.setLastUsedValue(AnnotationsConfig.imageAnnotationLineWidth,
                                                           forProperty: "lineWidth",
                                                           forKey: PSPDFKit.Annotation.ToolVariantID(tool: .square))
+        #endif
 
         DeviceInfoProvider.delegateStart = CFAbsoluteTimeGetCurrent()
         self.setupLogs()
