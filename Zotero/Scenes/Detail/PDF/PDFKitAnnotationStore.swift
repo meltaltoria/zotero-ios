@@ -53,11 +53,11 @@ struct PDFKitAnnotationRecord: ReaderAnnotation {
             guard coordinates.count.isMultiple(of: 2) else { return nil }
             return stride(from: 0, to: coordinates.count, by: 2).map { CGPoint(x: coordinates[$0].value, y: coordinates[$0 + 1].value) }
         }
-        lineWidth = field(FieldKeys.Item.Annotation.Position.lineWidth).flatMap(Double.init).map(CGFloat.init)
+        lineWidth = field(FieldKeys.Item.Annotation.Position.lineWidth).flatMap(Double.init).map { CGFloat($0) }
         color = field(FieldKeys.Item.Annotation.color) ?? "#ffd400"
         comment = field(FieldKeys.Item.Annotation.comment) ?? ""
         text = field(FieldKeys.Item.Annotation.text)
-        fontSize = field(FieldKeys.Item.Annotation.Position.fontSize).flatMap(Double.init).map(CGFloat.init)
+        fontSize = field(FieldKeys.Item.Annotation.Position.fontSize).flatMap(Double.init).map { CGFloat($0) }
         rotation = field(FieldKeys.Item.Annotation.Position.rotation).flatMap(Int.init) ?? 0
         sortIndex = item.annotationSortIndex
         dateAdded = item.dateAdded

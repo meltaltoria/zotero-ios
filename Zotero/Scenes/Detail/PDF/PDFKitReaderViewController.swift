@@ -166,7 +166,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
     private func setupNavigation() {
         navigationItem.leftBarButtonItems = [
             UIBarButtonItem(barButtonSystemItem: .close, target: self, action: #selector(closeReader)),
-            UIBarButtonItem(image: UIImage(systemName: "sidebar.left"), style: .plain, target: self, action: #selector(toggleSidebar))
+            UIBarButtonItem(image: UIImage(systemName: "sidebar.left"), style: .plain, target: self, action: #selector(toggleReaderSidebar))
         ]
         navigationItem.leftBarButtonItems?.last?.accessibilityLabel = "Annotations, pages and outline"
         let search = UIBarButtonItem(barButtonSystemItem: .search, target: self, action: #selector(searchDocument))
@@ -555,7 +555,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         if alert?.presentingViewController != nil { alert?.dismiss(animated: true, completion: show) } else { show() }
     }
 
-    @objc private func toggleSidebar() {
+    @objc private func toggleReaderSidebar() {
         if traitCollection.horizontalSizeClass == .compact {
             let controller = PDFKitSidebarController()
             controller.document = document

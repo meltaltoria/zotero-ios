@@ -125,7 +125,7 @@ final class PDFKitSidebarController: UITableViewController, UISearchBarDelegate 
     private func buildOutline() {
         outline.removeAll()
         guard let document, let root = document.outlineRoot else { return }
-        func append(_ parent: PDFOutline, level: Int) {
+        func append(_ parent: PDFKit.PDFOutline, level: Int) {
             for index in 0..<parent.numberOfChildren {
                 guard let item = parent.child(at: index) else { continue }
                 if let page = item.destination?.page {
