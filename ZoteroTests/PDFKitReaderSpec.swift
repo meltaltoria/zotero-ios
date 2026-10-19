@@ -33,7 +33,7 @@ final class PDFKitReaderSpec: XCTestCase {
             realm.add(parent)
             realm.add(user)
             let request = CreatePDFKitAnnotationsDbRequest(
-                attachmentKey: parent.key, libraryId: parent.libraryId, annotations: [annotation], userId: 42, schemaController: schema
+                attachmentKey: parent.key, libraryId: .custom(.myLibrary), annotations: [annotation], userId: 42, schemaController: schema
             )
             try request.process(in: realm)
         }
@@ -61,17 +61,17 @@ final class PDFKitReaderSpec: XCTestCase {
         try realm.write {
             realm.add(parent)
             let request = CreatePDFKitAnnotationsDbRequest(
-                attachmentKey: parent.key, libraryId: parent.libraryId, annotations: [annotation], userId: 42, schemaController: schema
+                attachmentKey: parent.key, libraryId: .custom(.myLibrary), annotations: [annotation], userId: 42, schemaController: schema
             )
             try request.process(in: realm)
         }
         let item = try XCTUnwrap(realm.objects(RItem.self).first(where: { $0.key == annotation.key }))
         try realm.write {
             let tag = RTypedTag()
-            tag.tag = RTag.create(name: "Keep this tag", libraryId: parent.libraryId)
+            tag.tag = RTag.create(name: "Keep this tag", libraryId: .custom(.myLibrary))
             tag.item = item
             realm.add(tag)
-            try EditItemFieldsDbRequest(key: item.key, libraryId: parent.libraryId,
+            try EditItemFieldsDbRequest(key: item.key, libraryId: .custom(.myLibrary),
                                         fieldValues: [.init(key: FieldKeys.Item.Annotation.comment, baseKey: nil): "New comment"], dateParser: parser).process(in: realm)
         }
         let restored = try XCTUnwrap(PDFKitAnnotationRecord(item: item))
@@ -92,7 +92,7 @@ final class PDFKitReaderSpec: XCTestCase {
         try realm.write {
             realm.add(parent)
             let request = CreatePDFKitAnnotationsDbRequest(
-                attachmentKey: parent.key, libraryId: parent.libraryId, annotations: [annotation], userId: 42, schemaController: schema
+                attachmentKey: parent.key, libraryId: .custom(.myLibrary), annotations: [annotation], userId: 42, schemaController: schema
             )
             try request.process(in: realm)
         }
