@@ -469,10 +469,8 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         translationTask?.cancel()
         translationTask = nil
         if let systemHost {
-            systemHost.willMove(toParent: nil)
-            systemHost.view.removeFromSuperview()
-            systemHost.removeFromParent()
             self.systemHost = nil
+            if systemHost.presentingViewController != nil { systemHost.dismiss(animated: true) }
         }
     }
 
@@ -480,26 +478,26 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         cancelTranslation()
         let id = UUID()
         translationID = id
+        if PDFTranslationSettingsStore.provider == "apple" {
+            if #available(iOS 18.0, *) {
+                let host = PDFKitSystemTranslationController(text: text, target: PDFTranslationSettingsStore.targetLanguage,
+                                                            cancel: { [weak self] in self?.cancelTranslation() }) { [weak self] result in
+                    self?.finishTranslation(result, id: id, original: text, annotation: annotation)
+                }
+                host.modalPresentationStyle = .pageSheet
+                host.isModalInPresentation = true
+                systemHost = host
+                present(host, animated: true)
+            } else {
+                showMessage("Apple Translation requires iOS 18 or later.")
+            }
+            return
+        }
         let alert = UIAlertController(title: "Translating…", message: nil, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in self?.cancelTranslation() })
         translationAlert = alert
         present(alert, animated: true) { [weak self] in
             guard let self, self.translationID == id else { return }
-            if PDFTranslationSettingsStore.provider == "apple" {
-                if #available(iOS 18.0, *) {
-                    let host = PDFKitSystemTranslationController(text: text, target: PDFTranslationSettingsStore.targetLanguage) { [weak self] result in
-                        self?.finishTranslation(result, id: id, original: text, annotation: annotation)
-                    }
-                    self.addChild(host)
-                    host.view.frame = CGRect(x: 0, y: 0, width: 2, height: 2)
-                    self.view.addSubview(host.view)
-                    host.didMove(toParent: self)
-                    self.systemHost = host
-                } else {
-                    self.finishTranslation(.failure(NSError(domain: "Translation", code: 1, userInfo: [NSLocalizedDescriptionKey: "Apple Translation requires iOS 18 or later."])), id: id, original: text, annotation: annotation)
-                }
-                return
-            }
             self.translationTask = Task { [weak self] in
                 do {
                     let translated = try await PDFTranslationService.translate(text: text, provider: PDFTranslationSettingsStore.provider,
@@ -517,7 +515,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
 
     private func finishTranslation(_ result: Result<String, Error>, id: UUID, original: String, annotation: PDFKitAnnotationRecord?) {
         guard translationID == id else { return }
-        let alert = translationAlert
+        let alert: UIViewController? = systemHost ?? translationAlert
         translationAlert = nil
         let show = { [weak self] in
             guard let self, self.translationID == id else { return }
@@ -738,9 +736,17 @@ private final class PDFKitInkView: UIView {
 private struct PDFKitSystemTranslationView: View {
     let text: String
     let target: String
+    let cancel: () -> Void
     let completion: (Result<String, Error>) -> Void
     var body: some View {
-        Color.clear.translationTask(source: nil, target: Locale.Language(identifier: languageCode)) { session in
+        VStack(spacing: 24) {
+            ProgressView("Translating…")
+            Text("Apple Translation may ask to download languages for offline use.")
+                .multilineTextAlignment(.center)
+            Button("Cancel", action: cancel)
+        }
+        .padding()
+        .translationTask(source: nil, target: Locale.Language(identifier: languageCode)) { session in
             do {
                 let response = try await session.translate(text)
                 try Task.checkCancellation()
@@ -768,9 +774,9 @@ private struct PDFKitSystemTranslationView: View {
 
 @available(iOS 18.0, *)
 private final class PDFKitSystemTranslationController: UIHostingController<PDFKitSystemTranslationView> {
-    init(text: String, target: String, completion: @escaping (Result<String, Error>) -> Void) {
-        super.init(rootView: PDFKitSystemTranslationView(text: text, target: target, completion: completion))
-        view.backgroundColor = .clear
+    init(text: String, target: String, cancel: @escaping () -> Void, completion: @escaping (Result<String, Error>) -> Void) {
+        super.init(rootView: PDFKitSystemTranslationView(text: text, target: target, cancel: cancel, completion: completion))
+        view.backgroundColor = .systemBackground
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 }

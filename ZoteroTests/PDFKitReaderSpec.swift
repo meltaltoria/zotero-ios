@@ -63,9 +63,10 @@ final class PDFKitReaderSpec: XCTestCase {
         }
         let item = try XCTUnwrap(realm.objects(RItem.self).first(where: { $0.key == annotation.key }))
         try realm.write {
-            let tag = RTag()
-            tag.name = "Keep this tag"
-            item.tags.append(tag)
+            let tag = RTypedTag()
+            tag.tag = RTag.create(name: "Keep this tag", libraryId: parent.libraryId)
+            tag.item = item
+            realm.add(tag)
             try EditItemFieldsDbRequest(key: item.key, libraryId: parent.libraryId,
                                         fieldValues: [.init(key: FieldKeys.Item.Annotation.comment, baseKey: nil): "New comment"], dateParser: parser).process(in: realm)
         }

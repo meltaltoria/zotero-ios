@@ -198,10 +198,12 @@ final class PDFKitAnnotationStore {
     enum StoreError: LocalizedError {
         case readOnly
         case deleted
+        case changedWhileEditing
         var errorDescription: String? {
             switch self {
             case .readOnly: return "This annotation or library is read-only."
             case .deleted: return "This attachment or annotation has been deleted."
+            case .changedWhileEditing: return "This annotation changed on another device. Reopen its comment before editing again."
             }
         }
     }
@@ -234,7 +236,9 @@ final class PDFKitAnnotationStore {
         let results = try dbStorage.perform(request: ReadAnnotationsDbRequest(attachmentKey: attachmentKey, libraryId: libraryId, page: nil), on: .main)
         self.results = results
         refresh()
-        token = results.observe { [weak self] change in
+        token = results.observe(keyPaths: ["fields.value", "rects.minX", "rects.minY", "rects.maxX", "rects.maxY",
+                                           "paths.coordinates.value", "paths.coordinates.sortIndex", "paths.sortIndex",
+                                           "tags.tag.name", "tags.tag.color", "tags.type", "dateModified", "createdBy.identifier"]) { [weak self] change in
             switch change {
             case .initial, .update: self?.refresh()
             case .error(let error): self?.onError?(error)
@@ -276,6 +280,8 @@ final class PDFKitAnnotationStore {
 
     func edit(_ record: PDFKitAnnotationRecord, comment: String? = nil, color: String? = nil) throws {
         try checkEditable(record)
+        let item = try dbStorage.perform(request: ReadItemDbRequest(libraryId: libraryId, key: record.key), on: .main)
+        guard item.dateModified == record.dateModified else { throw StoreError.changedWhileEditing }
         var fields: [KeyBaseKeyPair: String] = [:]
         if let comment { fields[.init(key: FieldKeys.Item.Annotation.comment, baseKey: nil)] = comment }
         if let color { fields[.init(key: FieldKeys.Item.Annotation.color, baseKey: nil)] = color }
