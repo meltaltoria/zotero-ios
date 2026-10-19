@@ -6,7 +6,7 @@
 import PDFKit
 import UIKit
 
-final class PDFKitSidebarController: UITableViewController, UISearchResultsUpdating {
+final class PDFKitSidebarController: UITableViewController, UISearchBarDelegate {
     var document: PDFKit.PDFDocument? { didSet { buildOutline(); if isViewLoaded { tableView.reloadData() } } }
     var records: [PDFKitAnnotationRecord] = [] { didSet { if isViewLoaded { tableView.reloadData() } } }
     var onSelectAnnotation: ((PDFKitAnnotationRecord) -> Void)?
@@ -15,7 +15,7 @@ final class PDFKitSidebarController: UITableViewController, UISearchResultsUpdat
     private let segments = UISegmentedControl(items: ["Annotations", "Pages", "Outline"])
     private var outline: [(title: String, page: Int, level: Int)] = []
     private var query = ""
-    private let filter = UISearchController(searchResultsController: nil)
+    private let filter = UISearchBar()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -26,20 +26,26 @@ final class PDFKitSidebarController: UITableViewController, UISearchResultsUpdat
         tableView.rowHeight = UITableView.automaticDimension
         segments.selectedSegmentIndex = 0
         segments.addTarget(self, action: #selector(segmentChanged), for: .valueChanged)
-        let container = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 52))
+        let container = UIView(frame: CGRect(x: 0, y: 0, width: 300, height: 104))
         segments.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(segments)
         NSLayoutConstraint.activate([
             segments.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
             segments.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -8),
-            segments.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+            segments.topAnchor.constraint(equalTo: container.topAnchor, constant: 10)
+        ])
+        filter.translatesAutoresizingMaskIntoConstraints = false
+        filter.delegate = self
+        filter.placeholder = "Filter annotations"
+        container.addSubview(filter)
+        NSLayoutConstraint.activate([
+            filter.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            filter.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            filter.topAnchor.constraint(equalTo: segments.bottomAnchor, constant: 4),
+            filter.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])
         tableView.tableHeaderView = container
-        filter.searchResultsUpdater = self
-        filter.obscuresBackgroundDuringPresentation = false
-        filter.searchBar.placeholder = "Filter annotations"
-        navigationItem.searchController = filter
-        definesPresentationContext = true
+        tableView.keyboardDismissMode = .onDrag
     }
 
     private var filtered: [PDFKitAnnotationRecord] {
@@ -50,12 +56,16 @@ final class PDFKitSidebarController: UITableViewController, UISearchResultsUpdat
         }
     }
 
-    func updateSearchResults(for searchController: UISearchController) {
-        query = searchController.searchBar.text ?? ""
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        query = searchText
         tableView.reloadData()
     }
 
-    @objc private func segmentChanged() { tableView.reloadData() }
+    @objc private func segmentChanged() {
+        filter.isUserInteractionEnabled = segments.selectedSegmentIndex == 0
+        if segments.selectedSegmentIndex != 0 { filter.resignFirstResponder() }
+        tableView.reloadData()
+    }
     @objc private func close() { dismiss(animated: true) }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -129,7 +139,7 @@ final class PDFKitSidebarController: UITableViewController, UISearchResultsUpdat
     }
 }
 
-final class PDFKitSearchController: UITableViewController, UISearchResultsUpdating, PDFDocumentDelegate {
+final class PDFKitSearchController: UITableViewController, UISearchResultsUpdating, PDFKit.PDFDocumentDelegate {
     private let document: PDFKit.PDFDocument
     private let search = UISearchController(searchResultsController: nil)
     private var matches: [PDFSelection] = []

@@ -370,7 +370,8 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         editComment(title: "New note", comment: "") { [weak self] comment in
             guard let self, !comment.isEmpty,
                   let record = self.newRecord(type: .note, page: page, rects: [rect], text: text, comment: comment) else { return }
-            do { try self.store.create(record); self.pdfView.clearSelection() } catch { self.showError(error) }
+            try self.store.create(record)
+            self.pdfView.clearSelection()
         }
     }
 
@@ -435,7 +436,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
             alert.addAction(UIAlertAction(title: "Edit comment", style: .default) { [weak self] _ in
                 self?.editComment(title: "Annotation comment", comment: record.comment.strippedRichTextTags) { [weak self] text in
                     guard let self, text != record.comment.strippedRichTextTags else { return }
-                    do { try self.store.edit(record, comment: text) } catch { self.showError(error) }
+                    try self.store.edit(record, comment: text)
                 }
             })
             alert.addAction(UIAlertAction(title: "Change color", style: .default) { [weak self] _ in self?.chooseColor(for: record) })
@@ -456,7 +457,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         present(alert, animated: true)
     }
 
-    private func editComment(title: String, comment: String, save: @escaping (String) -> Void) {
+    private func editComment(title: String, comment: String, save: @escaping (String) throws -> Void) {
         let editor = PDFKitCommentController(text: comment, save: save)
         editor.title = title
         let navigation = UINavigationController(rootViewController: editor)
@@ -536,7 +537,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
                         guard let self else { return }
                         self.editComment(title: "Save translation to comment", comment: annotation.comment.isEmpty ? translated : annotation.comment.strippedRichTextTags + "\n\n" + translated) { [weak self] comment in
                             guard let self else { return }
-                            do { try self.store.edit(annotation, comment: comment) } catch { self.showError(error) }
+                            try self.store.edit(annotation, comment: comment)
                         }
                     }
                 }
@@ -664,8 +665,8 @@ private final class PDFKitSelectionView: PDFView {
 private final class PDFKitCommentController: UIViewController {
     private let textView = UITextView()
     private let initialText: String
-    private let save: (String) -> Void
-    init(text: String, save: @escaping (String) -> Void) {
+    private let save: (String) throws -> Void
+    init(text: String, save: @escaping (String) throws -> Void) {
         initialText = text
         self.save = save
         super.init(nibName: nil, bundle: nil)
@@ -691,7 +692,14 @@ private final class PDFKitCommentController: UIViewController {
     @objc private func cancel() { dismiss(animated: true) }
     @objc private func saveText() {
         let text = textView.text ?? ""
-        dismiss(animated: true) { self.save(text) }
+        do {
+            try save(text)
+            dismiss(animated: true)
+        } catch {
+            let alert = UIAlertController(title: "Could not save comment", message: error.localizedDescription, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+        }
     }
 }
 
