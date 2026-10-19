@@ -42,6 +42,7 @@ jobs:
             -project Zotero.xcodeproj -scheme Zotero -configuration Test \
             -destination 'platform=iOS Simulator,OS=26.5,name=iPhone 17' \
             -derivedDataPath build/SideloadDerivedData \
+            -resultBundlePath build/sideload/iPhone.xcresult \
             -only-testing:ZoteroTests/PDFTranslationServiceSpec \
             -only-testing:ZoteroTests/SideloadStorageSpec \
             -only-testing:ZoteroTests/PDFKitReaderSpec \
@@ -57,6 +58,7 @@ jobs:
             -project Zotero.xcodeproj -scheme Zotero -configuration Test \
             -destination 'platform=iOS Simulator,OS=26.5,name=iPad Pro 13-inch (M5)' \
             -derivedDataPath build/SideloadDerivedData \
+            -resultBundlePath build/sideload/iPad.xcresult \
             -only-testing:ZoteroTests/PDFKitReaderSpec \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_ENTITLEMENTS= DEVELOPMENT_TEAM= ONLY_ACTIVE_ARCH=YES \
@@ -86,4 +88,12 @@ jobs:
         with:
           name: free-account-ipa-logs
           path: build/sideload/*.log
+          if-no-files-found: ignore
+
+      - name: Upload simulator test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfkit-simulator-results
+          path: build/sideload/*.xcresult
           if-no-files-found: ignore
