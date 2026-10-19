@@ -113,8 +113,8 @@ final class PDFTranslationFloatingController: UIViewController {
         let bounds = view.safeAreaLayoutGuide.layoutFrame.insetBy(dx: 8, dy: 8)
         guard bounds.width > 0 && bounds.height > 0 else { return }
         if panel.frame == .zero {
-            panel.frame = Self.clampedFrame(CGRect(x: bounds.maxX - expandedSize.width, y: bounds.minY + 30,
-                                                  width: expandedSize.width, height: expandedSize.height), in: bounds)
+            let initial = CGRect(x: bounds.maxX - expandedSize.width, y: bounds.minY + 30, width: expandedSize.width, height: expandedSize.height)
+            panel.frame = Self.clampedFrame(initial, in: bounds)
         } else if lastBounds != bounds {
             panel.frame = Self.clampedFrame(panel.frame, in: bounds, collapsed: collapsed)
         }

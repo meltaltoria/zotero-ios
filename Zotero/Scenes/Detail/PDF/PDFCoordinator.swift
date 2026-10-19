@@ -100,12 +100,15 @@ final class PDFCoordinator: ReaderCoordinator {
         else { return }
 
         #if SIDELOAD
-        let store = PDFKitAnnotationStore(attachmentKey: key, libraryId: libraryId, userId: userId,
-                                         dbStorage: userControllers.dbStorage, schemaController: controllers.schemaController,
-                                         dateParser: controllers.dateParser)
-        let reader = PDFKitReaderViewController(url: url,
-                                               title: try? userControllers.dbStorage.perform(request: ReadFilenameDbRequest(libraryId: libraryId, key: key), on: .main),
-                                               store: store, initialPage: page, annotationKey: preselectedAnnotationKey, previewRects: previewRects)
+        let store = PDFKitAnnotationStore(
+            attachmentKey: key, libraryId: libraryId, userId: userId,
+            dbStorage: userControllers.dbStorage, schemaController: controllers.schemaController, dateParser: controllers.dateParser
+        )
+        let reader = PDFKitReaderViewController(
+            url: url,
+            title: try? userControllers.dbStorage.perform(request: ReadFilenameDbRequest(libraryId: libraryId, key: key), on: .main),
+            store: store, initialPage: page, annotationKey: preselectedAnnotationKey, previewRects: previewRects
+        )
         userControllers.lastReadWatcher.submit(key: key, libraryId: libraryId, date: Date())
         navigationController?.setViewControllers([reader], animated: false)
         #else

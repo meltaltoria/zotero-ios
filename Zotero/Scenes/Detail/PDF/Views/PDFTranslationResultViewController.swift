@@ -51,12 +51,14 @@ final class PDFTranslationResultViewController: UIViewController {
         let originalLabel = UILabel()
         originalLabel.text = "Original"
         originalLabel.font = .preferredFont(forTextStyle: .headline)
+        originalLabel.adjustsFontForContentSizeCategory = true
 
         let originalView = makeTextView(text: originalText, secondary: true)
 
         let translationLabel = UILabel()
         translationLabel.text = "Translation"
         translationLabel.font = .preferredFont(forTextStyle: .headline)
+        translationLabel.adjustsFontForContentSizeCategory = true
 
         let translationView = makeTextView(text: translatedText, secondary: false)
 
@@ -133,6 +135,7 @@ final class PDFTranslationResultViewController: UIViewController {
         let textView = UITextView()
         textView.text = text
         textView.font = .preferredFont(forTextStyle: .body)
+        textView.adjustsFontForContentSizeCategory = true
         textView.textColor = secondary ? .secondaryLabel : .label
         textView.backgroundColor = .secondarySystemBackground
         textView.layer.cornerRadius = 10

@@ -32,8 +32,10 @@ final class PDFKitReaderSpec: XCTestCase {
         try realm.write {
             realm.add(parent)
             realm.add(user)
-            try CreatePDFKitAnnotationsDbRequest(attachmentKey: parent.key, libraryId: parent.libraryId,
-                                                annotations: [annotation], userId: 42, schemaController: schema).process(in: realm)
+            let request = CreatePDFKitAnnotationsDbRequest(
+                attachmentKey: parent.key, libraryId: parent.libraryId, annotations: [annotation], userId: 42, schemaController: schema
+            )
+            try request.process(in: realm)
         }
         let stored = try XCTUnwrap(realm.objects(RItem.self).first(where: { $0.key == annotation.key }))
         let restored = try XCTUnwrap(PDFKitAnnotationRecord(item: stored))
@@ -58,8 +60,10 @@ final class PDFKitReaderSpec: XCTestCase {
         let parser = DateParser()
         try realm.write {
             realm.add(parent)
-            try CreatePDFKitAnnotationsDbRequest(attachmentKey: parent.key, libraryId: parent.libraryId,
-                                                annotations: [annotation], userId: 42, schemaController: schema).process(in: realm)
+            let request = CreatePDFKitAnnotationsDbRequest(
+                attachmentKey: parent.key, libraryId: parent.libraryId, annotations: [annotation], userId: 42, schemaController: schema
+            )
+            try request.process(in: realm)
         }
         let item = try XCTUnwrap(realm.objects(RItem.self).first(where: { $0.key == annotation.key }))
         try realm.write {
@@ -87,8 +91,10 @@ final class PDFKitReaderSpec: XCTestCase {
         let schema = SchemaController()
         try realm.write {
             realm.add(parent)
-            try CreatePDFKitAnnotationsDbRequest(attachmentKey: parent.key, libraryId: parent.libraryId,
-                                                annotations: [annotation], userId: 42, schemaController: schema).process(in: realm)
+            let request = CreatePDFKitAnnotationsDbRequest(
+                attachmentKey: parent.key, libraryId: parent.libraryId, annotations: [annotation], userId: 42, schemaController: schema
+            )
+            try request.process(in: realm)
         }
         let item = try XCTUnwrap(realm.objects(RItem.self).first(where: { $0.key == annotation.key }))
         let restored = try XCTUnwrap(PDFKitAnnotationRecord(item: item))
@@ -105,6 +111,20 @@ final class PDFKitReaderSpec: XCTestCase {
         XCTAssertEqual(points.count, 8)
         XCTAssertEqual(points[0].cgPointValue, CGPoint(x: 0, y: 32))
         XCTAssertEqual(points[7].cgPointValue, CGPoint(x: 50, y: 0))
+    }
+
+    func testLongInkStrokeIsSplitWithSharedEndpointsAndBoundedPositionSize() throws {
+        let points = (0..<2400).map { CGPoint(x: Double($0) / 7, y: Double($0) / 11) }
+        let chunks = PDFKitAnnotationRecord.inkChunks(points)
+        XCTAssertEqual(chunks.count, 3)
+        XCTAssertTrue(chunks.allSatisfy { $0.count <= 1000 })
+        XCTAssertEqual(chunks[0].last, chunks[1].first)
+        XCTAssertEqual(chunks[1].last, chunks[2].first)
+        XCTAssertEqual(chunks.last?.last, points.last)
+        for chunk in chunks {
+            let data = try JSONSerialization.data(withJSONObject: ["pageIndex": 0, "width": 2, "paths": [chunk.flatMap { [Double($0.x), Double($0.y)] }]])
+            XCTAssertLessThan(data.count, AnnotationsConfig.positionSizeLimit)
+        }
     }
 
     func testPDFKitCanReopenExportOnRotatedPageWithOffsetCropBox() throws {

@@ -74,7 +74,7 @@ struct PDFKitAnnotationRecord: ReaderAnnotation {
         self.page = page
         self.pageLabel = pageLabel
         self.rects = rects.map { $0.rounded(to: 3) }
-        self.paths = paths
+        self.paths = paths.map { $0.map { $0.rounded(to: 3) } }
         self.lineWidth = lineWidth
         self.color = color
         self.comment = comment
@@ -87,6 +87,19 @@ struct PDFKitAnnotationRecord: ReaderAnnotation {
         tags = []
         authorId = userId
         authorName = author
+    }
+
+    /// Bound serialized position size and share an endpoint so split pen strokes remain visually continuous.
+    static func inkChunks(_ points: [CGPoint]) -> [[CGPoint]] {
+        guard points.count > 1 else { return [] }
+        var chunks: [[CGPoint]] = []
+        var start = 0
+        while start < points.count - 1 {
+            let end = min(start + 1000, points.count)
+            chunks.append(Array(points[start..<end]))
+            start = end - 1
+        }
+        return chunks
     }
 
     func pdfAnnotation() -> PDFKit.PDFAnnotation? {
@@ -273,8 +286,10 @@ final class PDFKitAnnotationStore {
 
     func create(_ records: [PDFKitAnnotationRecord]) throws {
         try checkEditable(nil)
-        try dbStorage.perform(request: CreatePDFKitAnnotationsDbRequest(attachmentKey: attachmentKey, libraryId: libraryId,
-                                                                      annotations: records, userId: userId, schemaController: schemaController), on: .main)
+        let request = CreatePDFKitAnnotationsDbRequest(
+            attachmentKey: attachmentKey, libraryId: libraryId, annotations: records, userId: userId, schemaController: schemaController
+        )
+        try dbStorage.perform(request: request, on: .main)
         refresh()
     }
 

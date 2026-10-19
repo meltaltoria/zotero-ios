@@ -110,8 +110,8 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         if sidebarVisible { sidebarWidth.constant = sidebarSize }
         guard !didRestorePage, let document, document.pageCount > 0, pdfView.bounds.width > 0 else { return }
         didRestorePage = true
-        let stored = try? store.dbStorage.perform(request: ReadDocumentDataDbRequest(attachmentKey: store.attachmentKey,
-                                                                                  libraryId: store.libraryId, defaultPageValue: "0"), on: .main)
+        let request = ReadDocumentDataDbRequest(attachmentKey: store.attachmentKey, libraryId: store.libraryId, defaultPageValue: "0")
+        let stored = try? store.dbStorage.perform(request: request, on: .main)
         let page = initialPage ?? stored.flatMap { Int($0.page) } ?? 0
         go(to: min(max(page, 0), document.pageCount - 1))
         if let annotationKey, let record = store.records.first(where: { $0.key == annotationKey }) {
@@ -331,8 +331,10 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         let offset = textOffset == NSNotFound ? 0 : textOffset
         let y = max(0, Int((page.bounds(for: .mediaBox).maxY - bounds.maxY).rounded()))
         let sortIndex = String(format: "%05d|%06d|%05d", index, offset, y)
-        let pageLabel = DefaultAnnotationPageLabel.read(attachmentKey: store.attachmentKey, libraryId: store.libraryId,
-                                                       dbStorage: store.dbStorage, queue: .main).label(for: index) ?? page.label ?? "\(index + 1)"
+        let labels = DefaultAnnotationPageLabel.read(
+            attachmentKey: store.attachmentKey, libraryId: store.libraryId, dbStorage: store.dbStorage, queue: .main
+        )
+        let pageLabel = labels.label(for: index) ?? page.label ?? "\(index + 1)"
         return PDFKitAnnotationRecord(type: type, page: index, pageLabel: pageLabel, rects: rects, paths: paths,
                                       lineWidth: type == .ink ? 2 : nil, text: text, comment: comment, color: color,
                                       userId: store.userId, author: Defaults.shared.displayName, sortIndex: sortIndex)
@@ -384,8 +386,11 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
     }
 
     private func saveInk(page: PDFPage, points: [CGPoint]) {
-        guard points.count > 1, let record = newRecord(type: .ink, page: page, rects: [], paths: [points], text: nil) else { return }
-        do { try store.create(record) } catch { showError(error) }
+        let records = PDFKitAnnotationRecord.inkChunks(points).compactMap {
+            newRecord(type: .ink, page: page, rects: [], paths: [$0], text: nil)
+        }
+        guard !records.isEmpty else { return }
+        do { try store.create(records) } catch { showError(error) }
     }
 
     private func chooseColor(for record: PDFKitAnnotationRecord? = nil) {
@@ -480,10 +485,11 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         translationID = id
         if PDFTranslationSettingsStore.provider == "apple" {
             if #available(iOS 18.0, *) {
-                let host = PDFKitSystemTranslationController(text: text, target: PDFTranslationSettingsStore.targetLanguage,
-                                                            cancel: { [weak self] in self?.cancelTranslation() }) { [weak self] result in
-                    self?.finishTranslation(result, id: id, original: text, annotation: annotation)
-                }
+                let host = PDFKitSystemTranslationController(
+                    text: text, target: PDFTranslationSettingsStore.targetLanguage,
+                    cancel: { [weak self] in self?.cancelTranslation() },
+                    completion: { [weak self] result in self?.finishTranslation(result, id: id, original: text, annotation: annotation) }
+                )
                 host.modalPresentationStyle = .pageSheet
                 host.isModalInPresentation = true
                 systemHost = host
