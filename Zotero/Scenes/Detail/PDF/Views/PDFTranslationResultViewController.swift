@@ -6,6 +6,7 @@
 import UIKit
 
 final class PDFTranslationResultViewController: UIViewController {
+    var onClose: (() -> Void)?
     private let originalText: String
     private let translatedText: String
     private let translationCompletion: ((String) -> Void)?
@@ -70,19 +71,19 @@ final class PDFTranslationResultViewController: UIViewController {
             buttons.append(makeButton(title: "Annotation") { [weak self] in
                 guard let self else { return }
                 translationCompletion(self.translatedText)
-                self.dismiss(animated: true)
+                self.closeResult()
             })
         }
 
         if let noteInsertionCompletion {
             buttons.append(makeButton(title: "Note") { [weak self] in
                 noteInsertionCompletion()
-                self?.dismiss(animated: true)
+                self?.closeResult()
             })
         }
 
         buttons.append(makeButton(title: "Done") { [weak self] in
-            self?.dismiss(animated: true)
+            self?.closeResult()
         })
 
         let buttonStack = UIStackView(arrangedSubviews: buttons)
@@ -101,15 +102,31 @@ final class PDFTranslationResultViewController: UIViewController {
         stack.spacing = 10
         stack.translatesAutoresizingMaskIntoConstraints = false
 
-        view.addSubview(stack)
+        let scroll = UIScrollView()
+        scroll.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scroll)
+        scroll.addSubview(stack)
+        let height = stack.heightAnchor.constraint(equalTo: scroll.frameLayoutGuide.heightAnchor, constant: -32)
+        height.priority = .defaultHigh
         NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
-            originalView.heightAnchor.constraint(equalToConstant: 120),
-            translationView.heightAnchor.constraint(greaterThanOrEqualToConstant: 220)
+            scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
+            scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+            stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16),
+            stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16),
+            stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 16),
+            stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -16),
+            stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32),
+            height,
+            originalView.heightAnchor.constraint(equalTo: translationView.heightAnchor, multiplier: 0.45),
+            originalView.heightAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            translationView.heightAnchor.constraint(greaterThanOrEqualToConstant: 80)
         ])
+    }
+
+    private func closeResult() {
+        if let onClose { onClose() } else { dismiss(animated: true) }
     }
 
     private func makeTextView(text: String, secondary: Bool) -> UITextView {

@@ -44,10 +44,24 @@ jobs:
             -derivedDataPath build/SideloadDerivedData \
             -only-testing:ZoteroTests/PDFTranslationServiceSpec \
             -only-testing:ZoteroTests/SideloadStorageSpec \
+            -only-testing:ZoteroTests/PDFKitReaderSpec \
             CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_ENTITLEMENTS= DEVELOPMENT_TEAM= ONLY_ACTIVE_ARCH=YES \
             'OTHER_SWIFT_FLAGS=$(inherited) -D SIDELOAD' \
             clean test 2>&1 | tee build/sideload/storage-tests.log
+
+      - name: Test PDFKit annotations and floating panel on iPad
+        run: |
+          set -o pipefail
+          xcodebuild -quiet \
+            -project Zotero.xcodeproj -scheme Zotero -configuration Test \
+            -destination 'platform=iOS Simulator,OS=26.5,name=iPad Pro 13-inch (M5)' \
+            -derivedDataPath build/SideloadDerivedData \
+            -only-testing:ZoteroTests/PDFKitReaderSpec \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_ENTITLEMENTS= DEVELOPMENT_TEAM= ONLY_ACTIVE_ARCH=YES \
+            'OTHER_SWIFT_FLAGS=$(inherited) -D SIDELOAD' \
+            test 2>&1 | tee build/sideload/pdfkit-ipad-tests.log
 
       - name: Build and package unsigned device app
         run: bash scripts/build_sideload_ipa.sh

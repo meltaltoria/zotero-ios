@@ -66,6 +66,7 @@ def package_app(app, output, bundle_id, compatible_ios, commit=""):
     info["CFBundleIdentifier"] = bundle_id
     info["CFBundleDisplayName"] = "Zotero Translate"
     info["ZoteroSideloadBuild"] = True
+    info["ZoteroPDFRenderer"] = "PDFKit"
     patched_info = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(output.suffix + ".partial")
@@ -109,6 +110,7 @@ def package_app(app, output, bundle_id, compatible_ios, commit=""):
         "bundle_identifier": bundle_id,
         "architecture": "arm64",
         "platform": "iPhoneOS",
+        "pdf_renderer": "PDFKit",
         "minimum_ios": ".".join(map(str, minimum)),
         "target_ios": compatible_ios,
         "signature": "unsigned; sign on Windows before installation",

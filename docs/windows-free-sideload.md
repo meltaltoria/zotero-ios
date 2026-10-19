@@ -17,7 +17,8 @@
 - 包内不包含 `ZShare` 分享扩展，也不申请 App Group、iCloud 容器权限。
 - PDF 翻译、应用内文件操作、Zotero 账号同步和 WebDAV 路径仍保留；这些功能的真机表现需要安装后验收。
 - 不会自动读取原版的本地数据库或登录凭据。需要在测试版中重新登录，通过同步或应用内导入取得文献。
-- PSPDFKit 仍受项目所用许可或试用期限约束；侧载不提供额外的 PDF SDK 许可。
+- 本分支的新侧载包使用苹果 PDFKit 阅读、缩略图和阅读器内导出，不依赖 PSPDFKit 授权来显示 PDF。安装时请下载 **PDFKit 改造提交之后**的成功产物，旧包仍是 PSPDFKit 阅读器。
+- 原版阅读器的部分高级功能暂未迁移，详细差异与验收步骤见 [PDFKit 阅读指南](pdfkit-reader.md)。
 
 ## Windows 签名与安装
 
@@ -39,7 +40,8 @@
 1. 在测试版 Zotero 的设置中打开 **Translation**，选择 Google、Apple 或 OpenAI-compatible 服务，设置目标语言。
 2. Google 不需要 API key，但要求设备网络能连接该服务。Apple 系统翻译需要 iOS/iPadOS 18+。OpenAI-compatible 需要用户自己的 endpoint、model 和 API key。
 3. 打开 PDF，选择文本，点击 **Translate**。在结果中复制译文，或在有合适笔记编辑器时写入笔记。
-4. 对测试高亮使用 **Translate Annotation**；Google 和 OpenAI-compatible 的译文可以保存为该批注评论。Apple 系统翻译暂不支持直接保存到批注评论。
-5. 检查翻译取消、PDF 长文本、关闭重开后的登录状态及文献同步。完整功能验收见[验收指南](ipad-translation-verification.md#功能验收)。
+4. 译文以浮动面板显示：拖动标题栏移动，拖动右下角调整大小，“−”折叠，再次点击展开，“×”关闭。面板之外仍可阅读、滚动和批注。
+5. 在侧边栏点击批注的详情按钮，选择 **Translate annotation**。PDFKit 阅读器中三个服务的译文均可在预览编辑后追加到该批注评论。Apple 翻译需要先下载所选语言，部分语言对不受系统支持。
+6. 检查翻译取消、PDF 长文本、关闭重开后的登录状态及文献同步。完整功能验收见[验收指南](ipad-translation-verification.md#功能验收)。
 
 真实 iOS 18.7.8 上的安装、登录、同步和翻译需要用户设备验证；云端模拟器测试不能替代这一步。

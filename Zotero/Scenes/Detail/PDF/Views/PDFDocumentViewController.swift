@@ -1303,17 +1303,7 @@ extension PDFDocumentViewController: PDFViewControllerDelegate {
             noteInsertionCompletion: noteInsertionCompletion
         )
 
-        controller.modalPresentationStyle = .popover
-        controller.preferredContentSize = CGSize(width: 480, height: 560)
-
-        if let popover = controller.popoverPresentationController {
-            popover.sourceView = sourceView ?? view
-            popover.sourceRect = sourceRect == .zero ? (sourceView ?? view).bounds : sourceRect
-            popover.permittedArrowDirections = [.up, .down]
-            popover.canOverlapSourceViewRect = true
-        }
-
-        present(controller, animated: true)
+        PDFTranslationFloatingController.show(controller, in: self)
     }
 
     func pdfViewController(_ pdfController: PDFViewController, didFinishRenderTaskFor pageView: PDFPageView, error: (any Error)?) {
