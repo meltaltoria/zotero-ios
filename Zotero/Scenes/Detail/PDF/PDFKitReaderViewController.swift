@@ -74,6 +74,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         }
         readingAI.onPage = { [weak self] page in
             guard let self, let document = self.document, page <= document.pageCount else { return }
+            self.readingAIHost.view.endEditing(true)
             if let compact = self.compactAIHost { compact.dismiss(animated: true) }
             self.go(to: page - 1)
         }
@@ -647,6 +648,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
     }
 
     private func closeReadingAI() {
+        readingAIHost.view.endEditing(true)
         compactAIHost?.dismiss(animated: true)
         readingAIVisible = false
         readingAIWidth.constant = 0
