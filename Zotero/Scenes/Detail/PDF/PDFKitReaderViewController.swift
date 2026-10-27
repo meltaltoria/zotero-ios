@@ -22,7 +22,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
     private let drawing = PDFKitInkView()
     private var sidebarWidth: NSLayoutConstraint!
     private var sidebarVisible = false
-    private lazy var readingAI = PDFReadingAssistantModel(documentID: store.libraryId.folderName + "/" + store.attachmentKey)
+    private lazy var readingAI = PDFReadingAssistantModel(documentID: "\(store.userId)/" + store.libraryId.folderName + "/" + store.attachmentKey)
     private lazy var readingAIHost = UIHostingController(rootView: PDFReadingAssistantView(model: readingAI))
     private var readingAIWidth: NSLayoutConstraint!
     private var readingAIVisible = false
@@ -684,7 +684,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
                     extracted.append(PDFReadingAssistantPage(number: index + 1, text: text))
                     size += text.count
                     if size >= 2_000_000 { break }
-                    if index.isMultiple(of: 4) { await Task.yield() }
+                    await Task.yield()
                 }
                 try Task.checkCancellation()
                 aiExtractionLimited = extracted.count < document.pageCount

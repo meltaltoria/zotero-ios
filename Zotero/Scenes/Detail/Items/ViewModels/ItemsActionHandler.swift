@@ -536,8 +536,10 @@ final class ItemsActionHandler: BaseItemsActionHandler, ViewModelActionHandler {
     }
 
     private func addAttachments(urls: [URL], in viewModel: ViewModel<ItemsActionHandler>) {
+        guard viewModel.state.library.filesEditable, viewModel.state.library.metadataEditable else { return }
         let libraryId = viewModel.state.library.identifier
         var attachments: [Attachment] = []
+        var failedCopies: [String] = []
 
         for url in urls {
             let key = KeyGenerator.newKey
@@ -549,6 +551,7 @@ final class ItemsActionHandler: BaseItemsActionHandler, ViewModelActionHandler {
                 try LocalFileImporter.copy(from: url, to: file, fileStorage: fileStorage)
             } catch let error {
                 DDLogError("ItemsActionHandler: can't import file - \(error)")
+                failedCopies.append(filename)
                 continue
             }
 
@@ -580,6 +583,7 @@ final class ItemsActionHandler: BaseItemsActionHandler, ViewModelActionHandler {
 
         let type = self.schemaController.localized(itemType: ItemTypes.attachment) ?? ""
         let request = CreateAttachmentsDbRequest(attachments: attachments, parentKey: nil, localizedType: type, collections: collections)
+        let failedCopyNames = failedCopies
 
         self.perform(request: request, invalidateRealm: true) { [weak self, weak viewModel] result in
             guard let self, let viewModel else { return }
@@ -592,9 +596,9 @@ final class ItemsActionHandler: BaseItemsActionHandler, ViewModelActionHandler {
                         _ = recognizerController.queue(task: task)
                     }
                 }
-                guard !failed.isEmpty else { return }
+                guard !failed.isEmpty || !failedCopyNames.isEmpty else { return }
                 update(viewModel: viewModel) { state in
-                    state.error = .attachmentAdding(.someFailed(failed.map({ $0.1 })))
+                    state.error = .attachmentAdding(.someFailed(failedCopyNames + failed.map({ $0.1 })))
                 }
 
             case .failure(let error):

@@ -52,7 +52,7 @@ final class PDFReadingAssistantModel: ObservableObject {
                 try Task.checkCancellation()
                 guard requestID == id else { return }
                 status = context.description
-                messages.append(PDFReadingAssistantMessage(role: "user", content: question))
+                messages.append(PDFReadingAssistantMessage(role: "user", content: question, contextDescription: context.description))
                 let answer = PDFReadingAssistantMessage(role: "assistant", content: "", status: .streaming)
                 answerID = answer.id
                 messages.append(answer)
@@ -109,7 +109,7 @@ final class PDFReadingAssistantModel: ObservableObject {
 
     private func persist() {
         if messages.count > 120 { messages = Array(messages.suffix(120)) }
-        do { try history.save(messages) } catch { self.error = "聊天已完成，但未能保存本地记录。" }
+        do { try history.save(messages) } catch { self.error = "未能保存本地聊天记录，请复制需要保留的内容。" }
     }
 }
 
@@ -212,6 +212,9 @@ struct PDFReadingAssistantView: View {
             if message.role == "assistant" {
                 Label("AI", systemImage: "sparkles").font(.caption.bold()).foregroundStyle(.purple)
             }
+            if let description = message.contextDescription {
+                Text(description).font(.caption2).foregroundStyle(.secondary)
+            }
             if message.content.isEmpty {
                 Text(message.status == .streaming ? "等待模型回复…" : "未收到回复").foregroundStyle(.secondary)
             } else {
@@ -227,6 +230,12 @@ struct PDFReadingAssistantView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(message.role == "user" ? Color.purple.opacity(0.12) : Color(uiColor: .tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+        .contextMenu {
+            if message.role == "user" {
+                Button("再次提问") { model.draft = message.content }.disabled(model.isBusy)
+            }
+            Button("复制") { UIPasteboard.general.string = message.content }
+        }
     }
 
     private var composer: some View {
@@ -303,7 +312,9 @@ private struct PDFReadingAssistantSettingsView: View {
                 }
             }
             .confirmationDialog("移除保存的 API Key？", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("移除密钥", role: .destructive) { PDFReadingAssistantService.removeAPIKey(); key = "" }
+                Button("移除密钥", role: .destructive) {
+                    do { try PDFReadingAssistantService.removeAPIKey(); key = "" } catch { self.error = error.localizedDescription }
+                }
             }
         }
     }

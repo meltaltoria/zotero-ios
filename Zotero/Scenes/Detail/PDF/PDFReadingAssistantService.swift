@@ -74,8 +74,11 @@ private enum PDFReadingAssistantKeychain {
         guard status == errSecSuccess else { throw PDFReadingAssistantError.message("API Key 未能保存到钥匙串，请重试。") }
     }
 
-    static func delete() {
-        SecItemDelete(query as CFDictionary)
+    static func delete() throws {
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw PDFReadingAssistantError.message("API Key 未能移除，请重试。")
+        }
     }
 }
 
@@ -94,12 +97,14 @@ struct PDFReadingAssistantMessage: Codable, Identifiable, Equatable {
     let role: String
     var content: String
     var status: Status
+    var contextDescription: String?
 
-    init(role: String, content: String, status: Status = .complete) {
+    init(role: String, content: String, status: Status = .complete, contextDescription: String? = nil) {
         id = UUID()
         self.role = role
         self.content = content
         self.status = status
+        self.contextDescription = contextDescription
     }
 }
 
@@ -162,6 +167,9 @@ enum PDFReadingAssistantService {
         }
         if object["error"] != nil { throw PDFReadingAssistantError.message("服务商返回了错误，请检查模型、额度与 API 设置。") }
         let choices = object["choices"] as? [[String: Any]]
+        if choices?.first?["finish_reason"] as? String == "length" {
+            throw PDFReadingAssistantError.message("回复达到模型输出长度上限，内容可能不完整。请缩小提问范围后重试。")
+        }
         let delta = choices?.first?["delta"] as? [String: Any]
         return delta?["content"] as? String
     }
@@ -169,7 +177,9 @@ enum PDFReadingAssistantService {
     static func stream(configuration: PDFReadingAssistantConfiguration, messages: [Message], session injectedSession: URLSession? = nil,
                        onText: @escaping @Sendable (String) async -> Void) async throws {
         let delegate = NoRedirects()
-        let session = injectedSession ?? URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
+        let sessionConfiguration = URLSessionConfiguration.ephemeral
+        sessionConfiguration.timeoutIntervalForResource = 240
+        let session = injectedSession ?? URLSession(configuration: sessionConfiguration, delegate: delegate, delegateQueue: nil)
         defer { if injectedSession == nil { session.invalidateAndCancel() } }
         let (bytes, response) = try await session.bytes(for: request(configuration: configuration, messages: messages))
         guard let http = response as? HTTPURLResponse else { throw PDFReadingAssistantError.message("API 没有返回有效的 HTTP 响应。") }
@@ -192,24 +202,29 @@ enum PDFReadingAssistantService {
         var answer = ""
         var completed = false
         var lastUpdate = Date.distantPast
-        for try await line in bytes.lines {
-            try Task.checkCancellation()
-            // Chat Completions emits one JSON object per data line. Ignore SSE keep-alives and metadata.
-            guard line.hasPrefix("data:") else { continue }
-            var event = String(line.dropFirst(5))
-            if event.hasPrefix(" ") { event.removeFirst() }
-            if event == "[DONE]" { completed = true; break }
-            guard event.count <= 100000 else { throw PDFReadingAssistantError.message("API 响应过长，已停止接收。") }
-            if let fragment = try content(from: event) {
-                answer += fragment
-                if Date().timeIntervalSince(lastUpdate) >= 0.06 {
-                    await onText(answer)
-                    lastUpdate = Date()
+        do {
+            for try await line in bytes.lines {
+                try Task.checkCancellation()
+                // Chat Completions emits one JSON object per data line. Ignore SSE keep-alives and metadata.
+                guard line.hasPrefix("data:") else { continue }
+                var event = String(line.dropFirst(5))
+                if event.hasPrefix(" ") { event.removeFirst() }
+                if event == "[DONE]" { completed = true; break }
+                guard event.count <= 100000 else { throw PDFReadingAssistantError.message("API 响应过长，已停止接收。") }
+                if let fragment = try content(from: event) {
+                    answer += fragment
+                    if Date().timeIntervalSince(lastUpdate) >= 0.06 {
+                        await onText(answer)
+                        lastUpdate = Date()
+                    }
+                }
+                guard answer.count <= 100000 else {
+                    throw PDFReadingAssistantError.message("API 响应过长，已停止接收。")
                 }
             }
-            guard answer.count <= 100000 else {
-                throw PDFReadingAssistantError.message("API 响应过长，已停止接收。")
-            }
+        } catch {
+            await onText(answer)
+            throw error
         }
         try Task.checkCancellation()
         await onText(answer)
@@ -225,5 +240,5 @@ enum PDFReadingAssistantService {
         }
     }
 
-    static func removeAPIKey() { PDFReadingAssistantKeychain.delete() }
+    static func removeAPIKey() throws { try PDFReadingAssistantKeychain.delete() }
 }

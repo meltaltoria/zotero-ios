@@ -99,3 +99,20 @@ jobs:
           name: pdfkit-simulator-results
           path: build/sideload/*.xcresult
           if-no-files-found: ignore
+
+      - name: Export reader UI test attachments
+        if: always()
+        run: |
+          for result in build/sideload/iPhone.xcresult build/sideload/iPad.xcresult; do
+            if [ -d "$result" ]; then
+              xcrun xcresulttool export attachments --path "$result" --output-path "build/sideload/previews/$(basename "$result" .xcresult)" || true
+            fi
+          done
+
+      - name: Upload reader UI previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reading-ai-ui-previews
+          path: build/sideload/previews
+          if-no-files-found: ignore

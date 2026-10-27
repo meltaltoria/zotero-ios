@@ -58,8 +58,9 @@ struct PDFReadingAssistantContext {
                     let lower = chunk.text.lowercased()
                     return terms.reduce(0) { $0 + (lower.contains($1) ? 5 : 0) } + (chunk.page == currentPage ? 2 : 0) + (chunk.index == 0 ? 1 : 0)
                 }
+                let scores = Dictionary(uniqueKeysWithValues: chunks.map { ($0.index, score($0)) })
                 ordered.sort { lhs, rhs in
-                    let first = score(lhs), second = score(rhs)
+                    let first = scores[lhs.index] ?? 0, second = scores[rhs.index] ?? 0
                     return first == second ? lhs.index < rhs.index : first > second
                 }
             }
@@ -119,7 +120,15 @@ struct PDFReadingAssistantHistory {
         excluded.isExcludedFromBackup = true
         var folderURL = folder
         try folderURL.setResourceValues(excluded)
-        let data = try JSONEncoder().encode(Array(messages.suffix(120)))
+        var retained: [PDFReadingAssistantMessage] = []
+        var remainingBytes = 4_000_000
+        for message in messages.suffix(120).reversed() {
+            let cost = message.content.utf8.count + 512
+            guard cost <= remainingBytes else { break }
+            retained.append(message)
+            remainingBytes -= cost
+        }
+        let data = try JSONEncoder().encode(Array(retained.reversed()))
         try data.write(to: url, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
