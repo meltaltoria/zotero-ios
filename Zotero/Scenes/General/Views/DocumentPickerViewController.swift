@@ -10,6 +10,29 @@ import UIKit
 
 import RxSwift
 
+/// File providers can grant read-only, security-scoped URLs. Import a coordinated copy; never move the user's original.
+enum LocalFileImporter {
+    static func copy(from source: URL, to destination: File, fileStorage: FileStorage) throws {
+        let scoped = source.startAccessingSecurityScopedResource()
+        defer { if scoped { source.stopAccessingSecurityScopedResource() } }
+        var coordinationError: NSError?
+        var copyError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: source, options: .withoutChanges, error: &coordinationError) { readableURL in
+            do {
+                let values = try readableURL.resourceValues(forKeys: [.isRegularFileKey])
+                guard values.isRegularFile == true else {
+                    throw CocoaError(.fileReadUnsupportedScheme)
+                }
+                try fileStorage.copy(from: readableURL.path, to: destination)
+            } catch {
+                copyError = error
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        if let copyError { throw copyError }
+    }
+}
+
 final class DocumentPickerViewController: UIDocumentPickerViewController {
     let observable: PublishSubject<[URL]> = PublishSubject()
 

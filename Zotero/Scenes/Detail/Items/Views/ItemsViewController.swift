@@ -41,6 +41,13 @@ final class ItemsViewController: BaseItemsViewController {
         fatalError("init(coder:) has not been implemented")
     }
 
+    @discardableResult
+    func importFiles(_ urls: [URL]) -> Bool {
+        guard viewModel.state.library.filesEditable, viewModel.state.library.metadataEditable else { return false }
+        viewModel.process(action: .addAttachments(urls))
+        return true
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 

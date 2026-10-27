@@ -101,6 +101,44 @@ final class AppCoordinator: NSObject {
     }
 
     // MARK: - Helpers
+    private func importLocalPDF(_ url: URL, into mainController: MainViewController) {
+        let staged = FileData(rootPath: NSTemporaryDirectory(), relativeComponents: ["ZoteroImport", UUID().uuidString], name: url.deletingPathExtension().lastPathComponent, ext: "pdf")
+        let fileStorage = controllers.fileStorage
+        DispatchQueue.global(qos: .userInitiated).async { [weak self, weak mainController] in
+            do {
+                try LocalFileImporter.copy(from: url, to: staged, fileStorage: fileStorage)
+            } catch {
+                DispatchQueue.main.async {
+                    self?.showAlert(title: "无法导入 PDF", message: "请先将文件下载到本机，再从文库的 ＋ → 添加文件 重试。", actions: [UIAlertAction(title: L10n.ok, style: .default)])
+                }
+                return
+            }
+            DispatchQueue.main.async {
+                guard let mainController else { try? fileStorage.remove(staged); return }
+                let libraryId: LibraryIdentifier = .custom(.myLibrary)
+                let collectionId: CollectionIdentifier = .custom(.all)
+                let showImportedLibrary = {
+                    mainController.masterCoordinator?.showCollections(for: libraryId, preselectedCollection: collectionId, animated: false)
+                    mainController.getDetailCoordinator(for: mainController.isCollapsed ? nil : libraryId, and: mainController.isCollapsed ? nil : collectionId) { coordinator in
+                        defer { try? fileStorage.remove(staged) }
+                        guard let navigation = coordinator.navigationController,
+                              let items = navigation.viewControllers.first as? ItemsViewController,
+                              items.importFiles([staged.createUrl()]) else { return }
+                        navigation.popToRootViewController(animated: false)
+                        if navigation.parent == nil, mainController.isCollapsed, let master = mainController.masterCoordinator?.navigationController {
+                            master.pushViewController(navigation, animated: false)
+                        }
+                    }
+                }
+                if mainController.presentedViewController != nil {
+                    mainController.dismiss(animated: false, completion: showImportedLibrary)
+                } else {
+                    showImportedLibrary()
+                }
+            }
+        }
+    }
+
     private func debugWindowFrame(for windowSize: CGSize, xPos: CGFloat) -> CGRect {
         let yPos = windowSize.height - AppCoordinator.debugButtonSize.height - AppCoordinator.debugButtonOffset
         return CGRect(origin: CGPoint(x: xPos, y: yPos), size: AppCoordinator.debugButtonSize)
@@ -306,6 +344,10 @@ extension AppCoordinator: AppDelegateCoordinatorDelegate {
         guard let window, let mainController = window.rootViewController as? MainViewController else {
             DDLogWarn("AppCoordinator: show screen aborted - invalid root view controller")
             return false
+        }
+        if urlContext.url.isFileURL, urlContext.url.pathExtension.lowercased() == "pdf" {
+            importLocalPDF(urlContext.url, into: mainController)
+            return true
         }
         guard let urlController = controllers.userControllers?.customUrlController, let kind = urlController.process(url: urlContext.url) else { return false }
 

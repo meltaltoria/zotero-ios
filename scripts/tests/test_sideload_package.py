@@ -59,6 +59,8 @@ class SideloadPackageTests(unittest.TestCase):
             info = plistlib.loads(archive.read("Payload/Zotero.app/Info.plist"))
             self.assertEqual(info["CFBundleIdentifier"], "org.example.ZoteroTranslate")
             self.assertEqual(info["CFBundleDisplayName"], "Zotero Translate")
+            self.assertEqual(info["CFBundleDocumentTypes"][0]["LSItemContentTypes"], ["com.adobe.pdf"])
+            self.assertFalse(info["LSSupportsOpeningDocumentsInPlace"])
             mode = archive.getinfo("Payload/Zotero.app/Zotero").external_attr >> 16
             self.assertTrue(mode & stat.S_IXUSR)
         self.assertEqual(plistlib.loads((self.app / "Info.plist").read_bytes()), self.info)

@@ -22,6 +22,13 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
     private let drawing = PDFKitInkView()
     private var sidebarWidth: NSLayoutConstraint!
     private var sidebarVisible = false
+    private lazy var readingAI = PDFReadingAssistantModel(documentID: store.libraryId.folderName + "/" + store.attachmentKey)
+    private lazy var readingAIHost = UIHostingController(rootView: PDFReadingAssistantView(model: readingAI))
+    private var readingAIWidth: NSLayoutConstraint!
+    private var readingAIVisible = false
+    private weak var compactAIHost: UIViewController?
+    private var extractedAIPages: [PDFReadingAssistantPage]?
+    private var aiExtractionLimited = false
     private var document: PDFKit.PDFDocument?
     private var rendered: [(PDFPage, PDFKit.PDFAnnotation)] = []
     private var recordByAnnotation: [ObjectIdentifier: PDFKitAnnotationRecord] = [:]
@@ -61,6 +68,16 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         setupLayout()
         setupToolbar()
         setupNavigation()
+        readingAI.contextProvider = { [weak self] scope, question in
+            guard let self else { throw CancellationError() }
+            return try await self.assistantContext(scope: scope, question: question)
+        }
+        readingAI.onPage = { [weak self] page in
+            guard let self, let document = self.document, page <= document.pageCount else { return }
+            if let compact = self.compactAIHost { compact.dismiss(animated: true) }
+            self.go(to: page - 1)
+        }
+        readingAI.onClose = { [weak self] in self?.closeReadingAI() }
         pdfView.autoScales = true
         pdfView.displayBox = .cropBox
         pdfView.backgroundColor = .secondarySystemBackground
@@ -102,12 +119,16 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         UIMenuController.shared.menuItems = oldMenuItems
         if isBeingDismissed || navigationController?.isBeingDismissed == true {
             cancelTranslation()
+            readingAI.stop()
         }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         if sidebarVisible { sidebarWidth.constant = sidebarSize }
+        if readingAIVisible {
+            readingAIWidth.constant = min(view.bounds.width, Self.assistantPanelWidth(for: view.bounds.width))
+        }
         guard !didRestorePage, let document, document.pageCount > 0, pdfView.bounds.width > 0 else { return }
         didRestorePage = true
         let request = ReadDocumentDataDbRequest(attachmentKey: store.attachmentKey, libraryId: store.libraryId, defaultPageValue: "0")
@@ -120,6 +141,17 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
             pdfView.go(to: rect, on: current)
         }
         pageChanged()
+    }
+
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        if readingAIVisible, size.width < 720 {
+            closeReadingAI()
+            coordinator.animate(alongsideTransition: nil) { [weak self] _ in
+                guard let self, self.presentedViewController == nil, self.view.window != nil else { return }
+                self.toggleReadingAI()
+            }
+        }
     }
 
     private var sidebarSize: CGFloat {
@@ -139,6 +171,14 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         sidebar.didMove(toParent: self)
         sidebar.view.isHidden = true
         sidebarWidth = sidebar.view.widthAnchor.constraint(equalToConstant: 0)
+        addChild(readingAIHost)
+        readingAIHost.view.translatesAutoresizingMaskIntoConstraints = false
+        body.addSubview(readingAIHost.view)
+        readingAIHost.didMove(toParent: self)
+        readingAIHost.view.isHidden = true
+        readingAIWidth = readingAIHost.view.widthAnchor.constraint(equalToConstant: 0)
+        let assistantBottom = readingAIHost.view.bottomAnchor.constraint(equalTo: body.bottomAnchor)
+        assistantBottom.priority = .defaultHigh
         NSLayoutConstraint.activate([
             body.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             body.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -153,13 +193,18 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
             sidebar.view.bottomAnchor.constraint(equalTo: body.bottomAnchor),
             sidebarWidth,
             pdfView.leadingAnchor.constraint(equalTo: sidebar.view.trailingAnchor),
-            pdfView.trailingAnchor.constraint(equalTo: body.trailingAnchor),
+            pdfView.trailingAnchor.constraint(equalTo: readingAIHost.view.leadingAnchor),
             pdfView.topAnchor.constraint(equalTo: body.topAnchor),
             pdfView.bottomAnchor.constraint(equalTo: body.bottomAnchor),
             drawing.leadingAnchor.constraint(equalTo: pdfView.leadingAnchor),
             drawing.trailingAnchor.constraint(equalTo: pdfView.trailingAnchor),
             drawing.topAnchor.constraint(equalTo: pdfView.topAnchor),
-            drawing.bottomAnchor.constraint(equalTo: pdfView.bottomAnchor)
+            drawing.bottomAnchor.constraint(equalTo: pdfView.bottomAnchor),
+            readingAIHost.view.trailingAnchor.constraint(equalTo: body.trailingAnchor),
+            readingAIHost.view.topAnchor.constraint(equalTo: body.topAnchor),
+            assistantBottom,
+            readingAIHost.view.bottomAnchor.constraint(lessThanOrEqualTo: view.keyboardLayoutGuide.topAnchor),
+            readingAIWidth
         ])
     }
 
@@ -172,7 +217,9 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
         let search = UIBarButtonItem(barButtonSystemItem: .search, target: self, action: #selector(searchDocument))
         let more = UIBarButtonItem(image: UIImage(systemName: "ellipsis.circle"), menu: readerMenu())
         more.accessibilityLabel = "Reading options and export"
-        navigationItem.rightBarButtonItems = [more, search]
+        let assistant = UIBarButtonItem(image: UIImage(systemName: "sparkles"), style: .plain, target: self, action: #selector(toggleReadingAI))
+        assistant.accessibilityLabel = "AI 阅读助手"
+        navigationItem.rightBarButtonItems = [more, assistant, search]
     }
 
     private func setupToolbar() {
@@ -556,6 +603,7 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
     }
 
     @objc private func toggleReaderSidebar() {
+        if readingAIVisible { closeReadingAI() }
         if traitCollection.horizontalSizeClass == .compact {
             let controller = PDFKitSidebarController()
             controller.document = document
@@ -570,6 +618,82 @@ final class PDFKitReaderViewController: UIViewController, UIGestureRecognizerDel
             sidebarWidth.constant = sidebarVisible ? sidebarSize : 0
             view.setNeedsLayout()
         }
+    }
+
+    static func assistantPanelWidth(for width: CGFloat) -> CGFloat {
+        min(440, max(300, width * 0.36))
+    }
+
+    @objc private func toggleReadingAI() {
+        guard document?.isLocked == false else { showMessage("请先打开并解锁 PDF。"); return }
+        if readingAIVisible { closeReadingAI(); return }
+        if view.bounds.width < 720 {
+            let host = UIHostingController(rootView: PDFReadingAssistantView(model: readingAI))
+            host.modalPresentationStyle = .pageSheet
+            host.sheetPresentationController?.detents = [.medium(), .large()]
+            host.sheetPresentationController?.selectedDetentIdentifier = .large
+            host.sheetPresentationController?.prefersGrabberVisible = true
+            compactAIHost = host
+            present(host, animated: true)
+        } else {
+            sidebarVisible = false
+            sidebarWidth.constant = 0
+            sidebar.view.isHidden = true
+            readingAIVisible = true
+            readingAIHost.view.isHidden = false
+            readingAIWidth.constant = Self.assistantPanelWidth(for: view.bounds.width)
+            view.layoutIfNeeded()
+        }
+    }
+
+    private func closeReadingAI() {
+        compactAIHost?.dismiss(animated: true)
+        readingAIVisible = false
+        readingAIWidth.constant = 0
+        readingAIHost.view.isHidden = true
+        view.layoutIfNeeded()
+    }
+
+    private func assistantContext(scope: PDFReadingAssistantScope, question: String) async throws -> PDFReadingAssistantContext {
+        guard let document, !document.isLocked, let current = pdfView.currentPage else {
+            throw PDFReadingAssistantError.message("请先打开并解锁 PDF。")
+        }
+        let number = document.index(for: current) + 1
+        let pages: [PDFReadingAssistantPage]
+        switch scope {
+        case .selection:
+            guard let selection = pdfView.currentSelection else { throw PDFReadingAssistantError.message("请先在 PDF 中选择可复制的文字。") }
+            let lines = selection.selectionsByLine()
+            pages = selection.pages.map { page in
+                let text = lines.filter { $0.pages.contains(where: { $0 === page }) }.compactMap(\.string).joined(separator: "\n")
+                return PDFReadingAssistantPage(number: document.index(for: page) + 1, text: text)
+            }
+
+        case .page:
+            pages = [PDFReadingAssistantPage(number: number, text: current.string ?? "")]
+
+        case .document:
+            if let extractedAIPages {
+                pages = extractedAIPages
+            } else {
+                var extracted: [PDFReadingAssistantPage] = []
+                var size = 0
+                for index in 0..<min(document.pageCount, 1500) {
+                    try Task.checkCancellation()
+                    let text = document.page(at: index)?.string ?? ""
+                    extracted.append(PDFReadingAssistantPage(number: index + 1, text: text))
+                    size += text.count
+                    if size >= 2_000_000 { break }
+                    if index.isMultiple(of: 4) { await Task.yield() }
+                }
+                try Task.checkCancellation()
+                aiExtractionLimited = extracted.count < document.pageCount
+                extractedAIPages = extracted
+                pages = extracted
+            }
+        }
+        return try PDFReadingAssistantContext.build(pages: pages, scope: scope, question: question, currentPage: number,
+                                                    totalPages: document.pageCount, extractionLimited: scope == .document && aiExtractionLimited)
     }
 
     @objc private func searchDocument() {

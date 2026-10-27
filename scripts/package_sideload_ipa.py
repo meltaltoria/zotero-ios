@@ -67,6 +67,13 @@ def package_app(app, output, bundle_id, compatible_ios, commit=""):
     info["CFBundleDisplayName"] = "Zotero Translate"
     info["ZoteroSideloadBuild"] = True
     info["ZoteroPDFRenderer"] = "PDFKit"
+    info["CFBundleDocumentTypes"] = [{
+        "CFBundleTypeName": "PDF document",
+        "CFBundleTypeRole": "Viewer",
+        "LSHandlerRank": "Alternate",
+        "LSItemContentTypes": ["com.adobe.pdf"],
+    }]
+    info["LSSupportsOpeningDocumentsInPlace"] = False
     patched_info = plistlib.dumps(info, fmt=plistlib.FMT_BINARY)
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(output.suffix + ".partial")

@@ -541,21 +541,21 @@ final class ItemsActionHandler: BaseItemsActionHandler, ViewModelActionHandler {
 
         for url in urls {
             let key = KeyGenerator.newKey
-            let original = Files.file(from: url)
-            let filename = (original.name + "." + original.ext)
-            let file = Files.attachmentFile(in: libraryId, key: key, filename: filename, contentType: original.mimeType)
+            let filename = url.lastPathComponent
+            let mimeType = url.pathExtension.lowercased().mimeTypeFromExtension ?? "application/octet-stream"
+            let file = Files.attachmentFile(in: libraryId, key: key, filename: filename, contentType: mimeType)
 
             do {
-                try self.fileStorage.move(from: original, to: file)
+                try LocalFileImporter.copy(from: url, to: file, fileStorage: fileStorage)
             } catch let error {
-                DDLogError("ItemsActionHandler: can't move file - \(error)")
+                DDLogError("ItemsActionHandler: can't import file - \(error)")
                 continue
             }
 
             attachments.append(
                 Attachment(
-                    type: .file(filename: filename, contentType: original.mimeType, location: .local, linkType: .importedFile, compressed: false),
-                    title: original.name,
+                    type: .file(filename: filename, contentType: mimeType, location: .local, linkType: .importedFile, compressed: false),
+                    title: url.deletingPathExtension().lastPathComponent,
                     key: key,
                     libraryId: libraryId
                 )
