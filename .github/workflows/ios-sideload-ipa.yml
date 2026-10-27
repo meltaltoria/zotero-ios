@@ -1,0 +1,118 @@
+name: Free Account IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/pdf-translate-ios
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-account-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test private storage and build device IPA
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Select Xcode and install build tools
+        run: |
+          sudo xcode-select -s /Applications/Xcode_26.5.app
+          which swiftgen || HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install swiftgen
+          which swiftlint || HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install swiftlint
+
+      - name: Prepare dependencies and check packaging
+        run: |
+          ./scripts/setup.sh
+          python3 -B -m unittest discover -s scripts/tests -v
+
+      - name: Test translation and private storage without shared entitlements
+        run: |
+          set -o pipefail
+          mkdir -p build/sideload
+          xcodebuild -quiet \
+            -project Zotero.xcodeproj -scheme Zotero -configuration Test \
+            -destination 'platform=iOS Simulator,OS=26.5,name=iPhone 17' \
+            -derivedDataPath build/SideloadDerivedData \
+            -resultBundlePath build/sideload/iPhone.xcresult \
+            -only-testing:ZoteroTests/PDFTranslationServiceSpec \
+            -only-testing:ZoteroTests/SideloadStorageSpec \
+            -only-testing:ZoteroTests/PDFKitReaderSpec \
+            -only-testing:ZoteroTests/PDFReadingAssistantSpec \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_ENTITLEMENTS= DEVELOPMENT_TEAM= ONLY_ACTIVE_ARCH=YES \
+            'OTHER_SWIFT_FLAGS=$(inherited) -D SIDELOAD' \
+            clean test 2>&1 | tee build/sideload/storage-tests.log
+
+      - name: Test PDFKit annotations and floating panel on iPad
+        run: |
+          set -o pipefail
+          xcodebuild -quiet \
+            -project Zotero.xcodeproj -scheme Zotero -configuration Test \
+            -destination 'platform=iOS Simulator,OS=26.5,name=iPad Pro 13-inch (M5)' \
+            -derivedDataPath build/SideloadDerivedData \
+            -resultBundlePath build/sideload/iPad.xcresult \
+            -only-testing:ZoteroTests/PDFKitReaderSpec \
+            -only-testing:ZoteroTests/PDFReadingAssistantSpec \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_ENTITLEMENTS= DEVELOPMENT_TEAM= ONLY_ACTIVE_ARCH=YES \
+            'OTHER_SWIFT_FLAGS=$(inherited) -D SIDELOAD' \
+            test 2>&1 | tee build/sideload/pdfkit-ipad-tests.log
+
+      - name: Build and package unsigned device app
+        run: bash scripts/build_sideload_ipa.sh
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zotero-Translate-Free-unsigned
+          path: build/sideload/Zotero-Translate-Free-unsigned.ipa
+          if-no-files-found: error
+
+      - name: Upload package manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zotero-Translate-Free-manifest
+          path: build/sideload/Zotero-Translate-Free-unsigned.json
+          if-no-files-found: error
+
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: free-account-ipa-logs
+          path: build/sideload/*.log
+          if-no-files-found: ignore
+
+      - name: Upload simulator test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdfkit-simulator-results
+          path: build/sideload/*.xcresult
+          if-no-files-found: ignore
+
+      - name: Export reader UI test attachments
+        if: always()
+        run: |
+          for result in build/sideload/iPhone.xcresult build/sideload/iPad.xcresult; do
+            if [ -d "$result" ]; then
+              xcrun xcresulttool export attachments --path "$result" --output-path "build/sideload/previews/$(basename "$result" .xcresult)" || true
+            fi
+          done
+
+      - name: Upload reader UI previews
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reading-ai-ui-previews
+          path: build/sideload/previews
+          if-no-files-found: ignore

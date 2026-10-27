@@ -15,7 +15,7 @@ final class URLSessionCreator {
         httpMaximumConnectionsPerHost: Int? = nil
     ) -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.background(withIdentifier: identifier)
-        configuration.sharedContainerIdentifier = AppGroup.identifier
+        configuration.sharedContainerIdentifier = AppGroup.sharedContainerIdentifier
         configuration.timeoutIntervalForRequest = ApiConstants.requestTimeout
         configuration.timeoutIntervalForResource = ApiConstants.resourceTimeout
         configuration.sessionSendsLaunchEvents = true

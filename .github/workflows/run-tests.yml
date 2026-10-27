@@ -1,12 +1,17 @@
 name: Run tests
 
 on: 
+  workflow_dispatch:
   push:
     tags-ignore:
       - '**'
     branches:
       - '**'
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   tests:
@@ -45,10 +50,39 @@ jobs:
         run: scripts/fetch_onnxruntime.sh
 
       - name: Clean & Build & Test
-        uses: sersoft-gmbh/xcodebuild-action@v4.0
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p build/full-suite
+          xcodebuild -quiet \
+            -project Zotero.xcodeproj -scheme Zotero \
+            -destination 'platform=iOS Simulator,OS=${{ matrix.ios_version }},name=${{ matrix.device_name }}' \
+            -resultBundlePath build/full-suite/iPhone.xcresult \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=NO DEVELOPMENT_TEAM= \
+            clean test 2>&1 | tee build/full-suite/xcodebuild.log
+
+      - name: Export test summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -d build/full-suite/iPhone.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path build/full-suite/iPhone.xcresult > build/full-suite/summary.json
+          fi
+
+      - name: Upload full-suite diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          project: Zotero.xcodeproj
-          scheme: Zotero
-          destination: platform=iOS Simulator,OS=${{ matrix.ios_version }},name=${{ matrix.device_name }}
-          action: clean test
-          build-settings: CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+          name: iphone-full-suite-diagnostics
+          path: |
+            build/full-suite/*.log
+            build/full-suite/*.json
+          if-no-files-found: ignore
+
+      - name: Upload full-suite results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iphone-full-suite-results
+          path: build/full-suite/*.xcresult
+          if-no-files-found: ignore

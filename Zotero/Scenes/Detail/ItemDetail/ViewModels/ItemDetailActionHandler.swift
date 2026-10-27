@@ -566,14 +566,13 @@ final class ItemDetailActionHandler: ViewModelActionHandler, BackgroundDbProcess
             for url in urls {
                 let nameWithExtension: String
                 let title: String
-                let mimeType = url.pathExtension.mimeTypeFromExtension ?? "application/octet-stream"
+                let mimeType = url.pathExtension.lowercased().mimeTypeFromExtension ?? "application/octet-stream"
                 let key = KeyGenerator.newKey
                 if urls.count == 1, !parentHasPDFAttachments, mimeType == "application/pdf" {
                     nameWithExtension = FilenameFormatter.validate(filename: parentTitle) + "." + url.pathExtension
                     title = "PDF"
                 } else {
-                    var name = url.deletingPathExtension().lastPathComponent
-                    name = name.removingPercentEncoding ?? name
+                    let name = url.deletingPathExtension().lastPathComponent
                     nameWithExtension = name + "." + url.pathExtension
                     title = name
                 }
@@ -581,7 +580,7 @@ final class ItemDetailActionHandler: ViewModelActionHandler, BackgroundDbProcess
                 let file = Files.attachmentFile(in: libraryId, key: key, filename: nameWithExtension, contentType: mimeType)
 
                 do {
-                    try fileStorage.move(from: url.path, to: file)
+                    try LocalFileImporter.copy(from: url, to: file, fileStorage: fileStorage)
                     attachments.append(
                         Attachment(
                             type: .file(filename: nameWithExtension, contentType: mimeType, location: .local, linkType: .importedFile, compressed: false),

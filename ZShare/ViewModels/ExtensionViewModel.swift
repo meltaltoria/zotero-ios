@@ -373,7 +373,7 @@ final class ExtensionViewModel {
     ) {
         let queue = DispatchQueue(label: "org.zotero.ZShare.BackgroundQueue", qos: .userInteractive)
 
-        let storage = HTTPCookieStorage.sharedCookieStorage(forGroupContainerIdentifier: AppGroup.identifier)
+        let storage = AppGroup.cookieStorage
         storage.cookieAcceptPolicy = .always
 
         let configuration = URLSessionConfiguration.default
