@@ -3,6 +3,7 @@
 from pathlib import Path
 import argparse
 import json
+import hashlib
 import os
 import shutil
 import signal
@@ -50,11 +51,14 @@ def pdf_fixture(path):
     path.write_bytes(body)
 
 def main(version, binary):
+    report = ART / ('runtime-' + version + '.json')
+    report.unlink(missing_ok=True)
     profile = ROOT / 'tests' / ('profile-' + version)
     if profile.exists(): shutil.rmtree(profile)
     extensions = profile / 'extensions'; extensions.mkdir(parents=True)
     data_dir = profile / 'zotero-data'; data_dir.mkdir()
     prefs = {'extensions.autoDisableScopes': 0, 'extensions.enabledScopes': 15,
+        'extensions.logging.enabled': True,
         'extensions.zotero.dataDir': str(data_dir), 'extensions.zotero.useDataDir': True,
         'extensions.zotero.firstRun2': False, 'extensions.zotero.automaticScraperUpdates': False,
         'extensions.zotero.autoSync': False, 'extensions.zotero.reportTranslationFailure': False,
@@ -63,9 +67,9 @@ def main(version, binary):
     (profile / 'user.js').write_text('\n'.join(f'user_pref({json.dumps(k)}, {json.dumps(v)});' for k,v in prefs.items()))
     package_manifest = json.loads((ROOT / 'src' / 'manifest.json').read_text())
     package_version = package_manifest['version']
-    shutil.copy(ROOT / 'dist' / f'zotero-ai-reader-{package_version}.xpi', extensions / 'ai-reader@local.zotero.xpi')
+    # The driver installs the release through AddonManager, exercising the real install path.
     manifest = {'manifest_version': 2, 'name': 'AI Reader integration driver', 'version': '1.0',
-        'applications': {'zotero': {'id': 'zzz-ai-reader-driver@local.test', 'strict_min_version': '7.0', 'strict_max_version': package_manifest['applications']['zotero']['strict_max_version']}}}
+        'applications': {'zotero': {'id': 'zzz-ai-reader-driver@local.test', 'update_url': 'https://example.invalid/ai-reader-test-updates.json', 'strict_min_version': '7.0', 'strict_max_version': package_manifest['applications']['zotero']['strict_max_version']}}}
     with zipfile.ZipFile(extensions / 'zzz-ai-reader-driver@local.test.xpi', 'w') as z:
         z.writestr('manifest.json', json.dumps(manifest)); z.write(ROOT / 'tests' / 'runtime-driver.js', 'bootstrap.js')
     pdf_fixture(ROOT / 'tests' / 'fixture.pdf')
@@ -99,9 +103,14 @@ def main(version, binary):
             print(json.dumps({'version': version, 'success': False, 'reason': 'runtime timed out', 'log': str(output)}), flush=True); return 1
     server.shutdown()
     display.terminate(); display.wait(); xvfb_log.close()
-    report = ART / ('runtime-' + version + '.json')
     if report.exists():
-        result = json.loads(report.read_text()); print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
+        result = json.loads(report.read_text())
+        result['zotero_version'] = version
+        result['platform'] = 'Linux container, official Zotero desktop runtime'
+        result['plugin_version'] = package_version
+        result['xpi_sha256'] = hashlib.sha256((ROOT / 'dist' / f'zotero-ai-reader-{package_version}.xpi').read_bytes()).hexdigest()
+        report.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+        print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
         return 0 if result['success'] else 1
     print(json.dumps({'version': version, 'success': False, 'exit_code': code, 'log': str(output)}), flush=True); return 1
 

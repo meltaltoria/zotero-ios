@@ -44,13 +44,16 @@ MOCK = r'''async () => {
     Utilities: { Internal: { copyTextToClipboard: text => { window.clipboardText = text; }, openPreferences: id => { window.openedPreferences = id; } } },
     Item: class { constructor(type) { this.type = type; } setNote(text) { this.note = text; } setCollections(c) { this.collections = c; } async saveTx() { notes.push(this); return notes.length + 100; } }
   };
-  window.Services = { logins: {
+  window.Services = {
+    io: { newURI: url => ({ spec: url }), newChannelFromURI: uri => uri.spec },
+    scriptSecurityManager: { getSystemPrincipal: () => ({}) },
+    logins: {
     findLogins: (origin, form, realm) => logins.filter(x => x.origin === origin && x.realm === realm),
     addLoginAsync: async login => logins.push(login),
     modifyLogin: (old, next) => { logins[logins.indexOf(old)] = next; },
     removeLogin: old => logins.splice(logins.indexOf(old), 1)
   } };
-  window.Components = { classes: { '@mozilla.org/login-manager/loginInfo;1': { createInstance: () => ({ init(origin, form, realm, user, password) { Object.assign(this, { origin, realm, password }); } }) } }, interfaces: { nsILoginInfo: {} } };
+  window.Components = { classes: { '@mozilla.org/login-manager/loginInfo;1': { createInstance: () => ({ init(origin, form, realm, user, password) { Object.assign(this, { origin, realm, password }); } }) } }, interfaces: { nsILoginInfo: {}, nsILoadInfo: { SEC_ALLOW_CROSS_ORIGIN_SEC_CONTEXT_IS_NULL: 0 }, nsIContentPolicy: { TYPE_OTHER: 1 } } };
   const manifest = await fetch('/src/manifest.json').then(r => r.json());
   window.host = new AIReaderPlugin({ id: 'ai-reader@local.zotero', version: manifest.version, rootURI: location.origin + '/src/' });
   await host.start();
@@ -123,7 +126,8 @@ def main():
         page.wait_for_function('!panel.state.busy && panel.state.messages.length === 6')
         check('nonstream request completes', page.evaluate('!panel.state.error'))
         page.screenshot(path=str(ROOT / 'tests' / 'artifacts' / 'sidebar-preview.png'), full_page=True)
-        # Load the shipped XHTML fragment as XML to preserve its namespaces.
+        # Reproduce Zotero's order: scripts run before the XHTML fragment exists.
+        page.add_script_tag(path=str(ROOT / 'src' / 'content' / 'preferences.js'))
         page.evaluate('''async () => {
           const xml = await fetch('/src/content/preferences.xhtml').then(r => r.text());
           const fragment = new DOMParser().parseFromString(xml,'application/xml');
@@ -135,10 +139,11 @@ def main():
             for (const child of node.childNodes) out.append(adapt(child));
             return out;
           }
-          document.body.append(adapt(fragment.documentElement));
+          const root = adapt(fragment.documentElement);
+          document.body.append(root);
+          root.dispatchEvent(new Event('load'));
         }''')
         page.add_style_tag(path=str(ROOT / 'src' / 'content' / 'preferences.css'))
-        page.add_script_tag(path=str(ROOT / 'src' / 'content' / 'preferences.js'))
         check('settings load current config', page.locator('#air-model').input_value() == 'fixture-model')
         check('settings never show saved secret', page.locator('#air-key').input_value() == '')
         page.locator('#air-profile').select_option('deepseek')

@@ -10,10 +10,9 @@ var AIReaderPanel = class {
     this.state = null;
     this.destroyed = false;
     this.lastRendered = null;
-    this.root = this.doc.createElementNS("http://www.w3.org/1999/xhtml", "div");
-    this.root.className = "air-panel";
-    this.root.innerHTML = `
-      <style>${cssText}</style>
+    // Privileged Firefox documents sanitize innerHTML and remove form controls.
+    // Parse this trusted, static UI template as XHTML so inputs survive in XUL windows.
+    const markup = `<div xmlns="http://www.w3.org/1999/xhtml" class="air-panel">
       <div class="air-heading"><span class="air-wordmark">AI <span>READER</span></span><button type="button" class="air-link" data-action="settings">设置</button></div>
       <div class="air-paper" data-role="title">打开一篇文献开始阅读</div>
       <div class="air-toolbar">
@@ -38,7 +37,13 @@ var AIReaderPanel = class {
       <div class="air-destination" data-role="destination"></div>
       <div class="air-actions"><button type="button" class="air-primary" data-action="send">发送</button><button type="button" class="air-stop" data-action="stop" hidden="hidden">停止</button><button type="button" data-action="copy">复制回答</button><button type="button" data-action="save">存为笔记</button><button type="button" class="air-link" data-action="clear">清空</button></div>
       <div class="air-status" data-role="status" role="status" aria-live="polite"></div>
-      <div class="air-footnote">仅在点击发送或快捷任务时调用 AI。材料和当前文献的最近对话将发送至上方服务；回答请对照原文核实。</div>`;
+      <div class="air-footnote">仅在点击发送或快捷任务时调用 AI。材料和当前文献的最近对话将发送至上方服务；回答请对照原文核实。</div></div>`;
+    const parsed = new this.doc.defaultView.DOMParser().parseFromString(markup, "application/xhtml+xml");
+    if (parsed.querySelector("parsererror")) throw new Error("AI 阅读边栏模板解析失败。");
+    this.root = this.doc.importNode(parsed.documentElement, true);
+    const style = this.doc.createElementNS("http://www.w3.org/1999/xhtml", "style");
+    style.textContent = cssText;
+    this.root.prepend(style);
     body.appendChild(this.root);
     this.el = role => this.root.querySelector(`[data-role="${role}"]`);
     this.root.addEventListener("click", event => {

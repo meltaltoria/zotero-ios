@@ -1,9 +1,20 @@
 /* SPDX-License-Identifier: MIT */
-(() => {
+(function initializeAIReaderPreferences() {
   "use strict";
   const root = document.getElementById("air-settings-pane");
-  if (!root || root.dataset.aiReady) return;
-  root.dataset.aiReady = "true";
+  // Zotero loads a preference pane's scripts before inserting its XHTML.
+  // Its post-insert lifecycle dispatches a load event on the root element.
+  if (!root) {
+    const onPaneLoad = event => {
+      if (event.target?.id !== "air-settings-pane") return;
+      document.removeEventListener("load", onPaneLoad, true);
+      initializeAIReaderPreferences();
+    };
+    document.addEventListener("load", onPaneLoad, true);
+    return;
+  }
+  if (root.getAttribute("data-ai-ready")) return;
+  root.setAttribute("data-ai-ready", "true");
   const el = name => root.querySelector("#air-" + name);
   const api = Zotero.AIReader;
   if (!api) { el("settings-status").textContent = "插件尚未启动，请关闭设置并重启 Zotero。"; return; }

@@ -6,13 +6,17 @@ import hashlib
 import json
 import zipfile
 import xml.etree.ElementTree as ET
+from urllib.parse import urljoin, urlparse
 
 ROOT = Path(__file__).resolve().parent
 
 def build(destination):
     src = ROOT / 'src'
     manifest = json.loads((src / 'manifest.json').read_text())
-    assert manifest['applications']['zotero']['id'] == 'ai-reader@local.zotero'
+    app = manifest['applications']['zotero']
+    assert app['id'] == 'ai-reader@local.zotero'
+    assert all(app.get(key) for key in ('id', 'update_url', 'strict_max_version')), 'Zotero requires id, update_url and strict_max_version'
+    assert urlparse(app['update_url']).scheme == 'https', 'The public update manifest must use HTTPS'
     for path in src.rglob('*.xhtml'):
         ET.parse(path)
     files = sorted(p for p in src.rglob('*') if p.is_file())
@@ -30,6 +34,14 @@ def build(destination):
         assert 'manifest.json' in archive.namelist() and 'bootstrap.js' in archive.namelist()
         assert all(not n.startswith('/') and '..' not in Path(n).parts for n in archive.namelist())
     checksum = hashlib.sha256(target.read_bytes()).hexdigest()
+    updates = {'addons': {app['id']: {'updates': [{
+        'version': manifest['version'],
+        'update_link': urljoin(app['update_url'], 'dist/' + target.name),
+        'update_hash': 'sha256:' + checksum,
+        'applications': {'zotero': {key: app[key] for key in ('strict_min_version', 'strict_max_version')}}
+    }]}}}
+    (ROOT / 'updates.json').write_text(json.dumps(updates, ensure_ascii=False, indent=2) + '\n')
+    (destination / 'updates.json').write_text(json.dumps(updates, ensure_ascii=False, indent=2) + '\n')
     (destination / 'SHA256SUMS.txt').write_text(f'{checksum}  {target.name}\n')
     print(json.dumps({'xpi': str(target), 'files': len(files), 'bytes': target.stat().st_size, 'sha256': checksum}, ensure_ascii=False))
     return target

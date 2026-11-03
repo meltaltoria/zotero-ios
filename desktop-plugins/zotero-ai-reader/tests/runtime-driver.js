@@ -14,12 +14,40 @@ async function writeResult() {
   Services.startup.quit(Components.interfaces.nsIAppStartup.eForceQuit);
 }
 async function reportFailure(error) {
-  result.error = String(error?.stack || error);
+  result.error = String(error?.message || error) + '\n' + String(error?.stack || '');
   try { await writeResult(); } catch (_) { Zotero.logError(error); }
 }
 async function run() {
   await Zotero.initializationPromise;
   await Zotero.uiReadyPromise;
+  const { AddonManager } = ChromeUtils.importESModule('resource://gre/modules/AddonManager.sys.mjs');
+  const sourceManifest = JSON.parse(await Zotero.File.getContentsAsync(ROOT + '/src/manifest.json'));
+  const oldPath = ROOT + '/dist/zotero-ai-reader-1.0.1.xpi';
+  let oldRejected = false;
+  try {
+    const broken = await AddonManager.getInstallForFile(Zotero.File.pathToFile(oldPath));
+    result.old_install = { error: broken?.error, state: broken?.state, addon_id: broken?.addon?.id || null };
+    oldRejected = !broken || Boolean(broken.error);
+  } catch (error) {
+    result.old_install = { error: String(error.message || error) };
+    oldRejected = true;
+  }
+  check('old 1.0.1 rejected by real Zotero installer', oldRejected);
+  const install = await AddonManager.getInstallForFile(Zotero.File.pathToFile(ROOT + '/dist/zotero-ai-reader-' + sourceManifest.version + '.xpi'));
+  result.new_install = { error: install?.error, state: install?.state, addon_id: install?.addon?.id || null, compatible: install?.addon?.isCompatible };
+  check('new XPI passes real manifest validation', install && !install.error && install.addon?.isCompatible);
+  await new Promise((resolve, reject) => {
+    const timer = Zotero.getMainWindow().setTimeout(() => reject(new Error('Native add-on install timed out')), 20000);
+    const finish = error => { Zotero.getMainWindow().clearTimeout(timer); install.removeListener(listener); error ? reject(error) : resolve(); };
+    const listener = {
+      onInstallEnded: () => finish(),
+      onInstallFailed: current => finish(new Error('Native install failed: ' + current.error)),
+      onDownloadFailed: current => finish(new Error('Native add-on read failed: ' + current.error))
+    };
+    install.addListener(listener);
+    Promise.resolve(install.install()).catch(finish);
+  });
+  check('native add-on installation completed', true);
   for (let i = 0; i < 100 && !Zotero.AIReader; i++) await Zotero.Promise.delay(100);
   check("extension booted", Zotero.AIReader);
   const plugin = Zotero.AIReader.owner;
@@ -63,6 +91,8 @@ async function run() {
   check("sidebar rendered by Zotero lifecycle", panel);
   check("reader sidebar uses current attachment", panel.attachmentID === attachment.id);
   check("safe sidebar DOM", panel.root.querySelector('[data-action="send"]'));
+  check('native XHTML question control retained', panel.el('question') instanceof win.HTMLTextAreaElement);
+  check('sidebar header localization loaded', (await win.document.l10n.formatValue('ai-reader-title')).startsWith('AI '));
   let button;
   plugin.onSelection({ reader, doc: win.document, params: { annotation: { text: "Controlled selection text", position: { pageIndex: 0 } } }, append: el => { button = el; } });
   button.click();
@@ -85,7 +115,7 @@ async function run() {
   let prefWin;
   for (let i = 0; i < 60; i++) {
     prefWin = Services.wm.getMostRecentWindow("zotero:pref");
-    if (prefWin?.document.getElementById("air-model")) break;
+    if (prefWin?.document.getElementById("air-model")?.value === "fixture-model") break;
     await Zotero.Promise.delay(100);
   }
   check("settings fragment and script loaded", prefWin?.document.getElementById("air-model")?.value === "fixture-model");

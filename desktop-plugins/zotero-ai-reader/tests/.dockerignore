@@ -1,0 +1,6 @@
+profile-*/
+artifacts/
+docker-buildx/
+references/
+references10/
+__pycache__/

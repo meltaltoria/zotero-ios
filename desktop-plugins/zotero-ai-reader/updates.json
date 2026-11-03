@@ -1,0 +1,19 @@
+{
+  "addons": {
+    "ai-reader@local.zotero": {
+      "updates": [
+        {
+          "version": "1.0.2",
+          "update_link": "https://raw.githubusercontent.com/meltaltoria/zotero-ios/codex/zotero-ai-reader-v1.0.0/desktop-plugins/zotero-ai-reader/dist/zotero-ai-reader-1.0.2.xpi",
+          "update_hash": "sha256:185cb8cabeb16465b71a7a826efad7c843542f71a288ad362ce3fbc1511c0f67",
+          "applications": {
+            "zotero": {
+              "strict_min_version": "7.0",
+              "strict_max_version": "10.*"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

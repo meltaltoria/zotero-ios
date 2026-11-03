@@ -1,36 +1,18 @@
 {
-  "plugin_version": "1.0.1",
+  "plugin_version": "1.0.2",
   "target_zotero_version": "10.0.7",
-  "previous_max_version": "9.*",
-  "new_min_version": "7.0",
+  "root_cause": "Missing mandatory applications.zotero.update_url caused native installer error -3 in 1.0.1.",
   "new_max_version": "10.*",
-  "root_cause": "Version 1.0.0 declared strict_max_version 9.*, so Zotero 10.0.7 rejected it before startup.",
-  "plugin_id_preserved": "ai-reader@local.zotero",
-  "runtime_resources_changed": [
-    "manifest.json"
-  ],
-  "verification": "Packaged manifest and archive integrity; 9 core tests; 23 browser/local-HTTP integration checks; static API review at Zotero tag 10.0.7.",
+  "native_linux_runtime_verified": true,
   "native_windows_runtime_verified": false,
-  "checked_source_files": [
-    {
-      "url": "https://github.com/zotero/zotero/blob/10.0.7/chrome/content/zotero/xpcom/pluginAPI/itemPaneManager.js",
-      "blob_sha": "f8890fc7999c3355593859c723d0d048dbf62d50"
-    },
-    {
-      "url": "https://github.com/zotero/zotero/blob/10.0.7/chrome/content/zotero/xpcom/reader.js",
-      "blob_sha": "5dff0658f5f5f8ee03569e38724c854981ef0cef"
-    },
-    {
-      "url": "https://github.com/zotero/zotero/blob/10.0.7/chrome/content/zotero/xpcom/preferencePanes.js",
-      "blob_sha": "5a711290b94b983af80163089940fe09498e7d31"
-    },
-    {
-      "url": "https://github.com/zotero/zotero/blob/10.0.7/chrome/content/zotero/xpcom/plugins.js",
-      "blob_sha": "088d5e99af1e86f4599bff83dfd1be1cdbe61ea3"
-    },
-    {
-      "url": "https://github.com/zotero/zotero/blob/10.0.7/chrome/content/zotero/xpcom/data/item.js",
-      "blob_sha": "c80df3c1294b838c1466a7233c0af2256ee53b9f"
-    }
+  "native_check_count": 33,
+  "native_report": "tests/reports/runtime-10.0.7.json",
+  "xpi_sha256": "185cb8cabeb16465b71a7a826efad7c843542f71a288ad362ce3fbc1511c0f67",
+  "fixes": [
+    "Required HTTPS update_url and hash-pinned update feed",
+    "Read jar resources through nsIChannel",
+    "Parse trusted sidebar controls as XHTML",
+    "Use anonymous privileged Gecko XHR",
+    "Initialize preferences after pane insertion"
   ]
 }

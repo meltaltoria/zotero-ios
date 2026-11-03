@@ -10,7 +10,15 @@ var AIReaderPlugin = class {
     this.selectionListener = event => this.onSelection(event);
   }
   async start() {
-    this.css = await Zotero.File.getContentsAsync(this.rootURI + "content/panel.css");
+    // Read a packaged jar: resource as a channel. Passing its URI string makes
+    // Zotero 10 route it through the HTTP parser, which cannot read jar: username.
+    const channel = Services.io.newChannelFromURI(
+      Services.io.newURI(this.rootURI + "content/panel.css"), null,
+      Services.scriptSecurityManager.getSystemPrincipal(), null,
+      Components.interfaces.nsILoadInfo.SEC_ALLOW_CROSS_ORIGIN_SEC_CONTEXT_IS_NULL,
+      Components.interfaces.nsIContentPolicy.TYPE_OTHER
+    );
+    this.css = await Zotero.File.getContentsAsync(channel, "UTF-8");
     for (const win of Zotero.getMainWindows()) this.addWindow(win);
     this.preferenceID = await Zotero.PreferencePanes.register({
       pluginID: this.id, id: "ai-reader-preferences", label: "AI 阅读助手",
@@ -284,7 +292,8 @@ var AIReaderPlugin = class {
     const win = Zotero.getMainWindow();
     const url = AIReaderCore.endpoint(config.baseURL, win.URL);
     return new Promise((resolve, reject) => {
-      const xhr = new win.XMLHttpRequest();
+      // An anonymous privileged XHR keeps ambient browser cookies out of AI requests.
+      const xhr = new win.XMLHttpRequest({ mozAnon: true });
       let settled = false, cursor = 0;
       const decoder = new AIReaderCore.SSEDecoder(onDelta);
       this.requests.add(xhr);
@@ -306,7 +315,6 @@ var AIReaderPlugin = class {
       try {
         xhr.open("POST", url, true);
         xhr.timeout = config.timeout * 1000;
-        xhr.withCredentials = false;
         xhr.setRequestHeader("Content-Type", "application/json");
         xhr.setRequestHeader("Accept", config.stream ? "text/event-stream, application/json" : "application/json");
         if (secret) xhr.setRequestHeader("Authorization", "Bearer " + secret);

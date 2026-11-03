@@ -1,9 +1,10 @@
 __pycache__/
 *.pyc
-runtime/
-runtime9/
+runtime*/
 tests/profile-*/
 tests/artifacts/
+tests/docker-buildx/
+tests/references*/
 .env
 .env.*
 .DS_Store

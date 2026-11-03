@@ -1,13 +1,14 @@
 {
   "manifest_version": 2,
   "name": "AI Reader · AI 阅读助手",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "在 Zotero 阅读器边栏解释、翻译和讨论论文；支持自行配置 OpenAI 兼容 AI 服务。",
   "author": "AI Reader contributors",
   "icons": { "48": "content/icon.svg", "96": "content/icon.svg" },
   "applications": {
     "zotero": {
       "id": "ai-reader@local.zotero",
+      "update_url": "https://raw.githubusercontent.com/meltaltoria/zotero-ios/codex/zotero-ai-reader-v1.0.0/desktop-plugins/zotero-ai-reader/updates.json",
       "strict_min_version": "7.0",
       "strict_max_version": "10.*"
     }

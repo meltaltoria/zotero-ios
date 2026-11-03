@@ -1,0 +1,13 @@
+# syntax=docker/dockerfile:1
+FROM debian:bookworm-slim
+RUN --mount=type=secret,id=system_ca,required=true \
+    apt-get -o Acquire::https::CaInfo=/run/secrets/system_ca update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::https::CaInfo=/run/secrets/system_ca install -y --no-install-recommends \
+       python3 ca-certificates libgtk-3-0 libdbus-glib-1-2 libasound2 libnss3 libxt6 \
+       libx11-xcb1 libpci3 dbus-x11 xvfb fonts-liberation \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 --user-group zotero-test \
+    && mkdir -p /tmp/.X11-unix \
+    && chmod 1777 /tmp/.X11-unix
+USER zotero-test
+WORKDIR /workspace/work/zotero-ai-reader
