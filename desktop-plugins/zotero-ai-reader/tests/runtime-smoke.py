@@ -11,6 +11,7 @@ import subprocess
 import threading
 import time
 import zipfile
+from urllib.parse import urlparse, parse_qs
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +20,22 @@ ART.mkdir(exist_ok=True)
 
 class Provider(BaseHTTPRequestHandler):
     def log_message(self, *_): pass
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path != '/__snapshot':
+            self.send_error(404); return
+        query = parse_qs(parsed.query)
+        name = query.get('name', ['sidebar'])[0]
+        if not all(c.isalnum() or c in '-_' for c in name):
+            self.send_error(400); return
+        from PIL import ImageGrab
+        shot = ImageGrab.grab(xdisplay=':98')
+        if all(k in query for k in ('x', 'y', 'w', 'h')):
+            x,y,w,h = (int(query[k][0]) for k in ('x','y','w','h'))
+            shot = shot.crop((max(0,x),max(0,y),min(shot.width,x+w),min(shot.height,y+h)))
+        path = ART / (name + '.png'); shot.save(path)
+        self.send_response(200); self.send_header('Content-Type', 'application/json'); self.end_headers()
+        self.wfile.write(json.dumps({'saved': path.name}).encode())
     def do_POST(self):
         data = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
         text = data['messages'][-1]['content'].split('\n本轮问题：\n')[-1]
@@ -50,20 +67,23 @@ def pdf_fixture(path):
     body += f'trailer\n<< /Root 1 0 R /Size {len(offsets)} >>\nstartxref\n{xref}\n%%EOF\n'.encode()
     path.write_bytes(body)
 
-def main(version, binary):
-    report = ART / ('runtime-' + version + '.json')
+def main(version, binary, locale=None):
+    run_tag = version + ('-' + locale if locale else '')
+    report = ART / ('runtime-' + run_tag + '.json')
     report.unlink(missing_ok=True)
-    profile = ROOT / 'tests' / ('profile-' + version)
+    profile = ROOT / 'tests' / ('profile-' + run_tag)
     if profile.exists(): shutil.rmtree(profile)
     extensions = profile / 'extensions'; extensions.mkdir(parents=True)
     data_dir = profile / 'zotero-data'; data_dir.mkdir()
     prefs = {'extensions.autoDisableScopes': 0, 'extensions.enabledScopes': 15,
         'extensions.logging.enabled': True,
+        'extensions.zotero.aiReaderTest.runTag': run_tag,
         'extensions.zotero.dataDir': str(data_dir), 'extensions.zotero.useDataDir': True,
         'extensions.zotero.firstRun2': False, 'extensions.zotero.automaticScraperUpdates': False,
         'extensions.zotero.autoSync': False, 'extensions.zotero.reportTranslationFailure': False,
         'extensions.zotero.repository.lastCheck.localTime': 2147483647,
         'app.update.enabled': False, 'app.update.auto': False, 'browser.shell.checkDefaultBrowser': False}
+    if locale: prefs['intl.locale.requested'] = locale
     (profile / 'user.js').write_text('\n'.join(f'user_pref({json.dumps(k)}, {json.dumps(v)});' for k,v in prefs.items()))
     package_manifest = json.loads((ROOT / 'src' / 'manifest.json').read_text())
     package_version = package_manifest['version']
@@ -85,14 +105,14 @@ def main(version, binary):
     Path('/tmp/.X11-unix').mkdir(mode=0o1777, exist_ok=True)
     display = subprocess.Popen([str(ROOT / 'runtime' / 'deps' / 'usr' / 'bin' / 'Xvfb'), ':98', '-ac', '-screen', '0', '1280x900x24', '-nolisten', 'tcp'], env=env, stdout=xvfb_log, stderr=subprocess.STDOUT)
     time.sleep(.5)
-    output = ART / f'zotero-{version}.log'
+    output = ART / f'zotero-{run_tag}.log'
     with output.open('w') as log:
         proc = subprocess.Popen([str(binary), '-no-remote', '-profile', str(profile), '-ZoteroDebugText'], env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try: proc.wait(timeout=4)
         except subprocess.TimeoutExpired:
             try:
                 from PIL import ImageGrab
-                ImageGrab.grab(xdisplay=':98').save(ART / ('screen-' + version + '.png'))
+                ImageGrab.grab(xdisplay=':98').save(ART / ('screen-' + run_tag + '.png'))
             except Exception as e: print('Diagnostic screenshot:', type(e).__name__, flush=True)
         try: code = proc.wait(timeout=100)
         except subprocess.TimeoutExpired:
@@ -107,6 +127,7 @@ def main(version, binary):
         result = json.loads(report.read_text())
         result['zotero_version'] = version
         result['platform'] = 'Linux container, official Zotero desktop runtime'
+        result['locale'] = locale or 'default'
         result['plugin_version'] = package_version
         result['xpi_sha256'] = hashlib.sha256((ROOT / 'dist' / f'zotero-ai-reader-{package_version}.xpi').read_bytes()).hexdigest()
         report.write_text(json.dumps(result, ensure_ascii=False, indent=2))
@@ -115,5 +136,5 @@ def main(version, binary):
     print(json.dumps({'version': version, 'success': False, 'exit_code': code, 'log': str(output)}), flush=True); return 1
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(); parser.add_argument('version'); parser.add_argument('binary', type=Path)
-    args = parser.parse_args(); raise SystemExit(main(args.version, args.binary.resolve()))
+    parser = argparse.ArgumentParser(); parser.add_argument('version'); parser.add_argument('binary', type=Path); parser.add_argument('--locale')
+    args = parser.parse_args(); raise SystemExit(main(args.version, args.binary.resolve(), args.locale))

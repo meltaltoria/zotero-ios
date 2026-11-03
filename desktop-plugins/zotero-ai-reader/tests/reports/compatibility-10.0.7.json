@@ -1,18 +1,29 @@
 {
-  "plugin_version": "1.0.2",
+  "plugin_version": "1.0.3",
   "target_zotero_version": "10.0.7",
-  "root_cause": "Missing mandatory applications.zotero.update_url caused native installer error -3 in 1.0.1.",
+  "root_cause": "Fluent message values replaced the collapsible-section children after localization, detaching the sidebar form; the sidenav value inserted wrapped text.",
   "new_max_version": "10.*",
   "native_linux_runtime_verified": true,
   "native_windows_runtime_verified": false,
-  "native_check_count": 33,
-  "native_report": "tests/reports/runtime-10.0.7.json",
-  "xpi_sha256": "185cb8cabeb16465b71a7a826efad7c843542f71a288ad362ce3fbc1511c0f67",
+  "native_locales": [
+    "zh-CN",
+    "en-US"
+  ],
+  "native_check_count_per_locale": 50,
+  "native_reports": [
+    "tests/reports/runtime-10.0.7-zh-CN.json",
+    "tests/reports/runtime-10.0.7-en-US.json"
+  ],
+  "regression_report": "tests/reports/regression-1.0.2-localization-zh-CN.json",
+  "xpi_sha256": "4dc7b377a08a56515cdd5255e575b4d42aee4e568bdb4c7a32283c382bc2b6da",
   "fixes": [
-    "Required HTTPS update_url and hash-pinned update feed",
-    "Read jar resources through nsIChannel",
-    "Parse trusted sidebar controls as XHTML",
-    "Use anonymous privileged Gecko XHR",
-    "Initialize preferences after pane insertion"
+    "Use Fluent .label for the whole collapsible-section",
+    "Use .tooltiptext and .aria-label for icon-only navigation",
+    "Resolve registered pane IDs through native getPane()"
+  ],
+  "verification": [
+    "Live DOM connectivity and visible dimensions after real Fluent translation",
+    "Real UI clicks for send, copy, save note, stop, and settings",
+    "Actual native clipboard and child-note database checks"
   ]
 }

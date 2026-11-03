@@ -1,32 +1,28 @@
-> 本目录是 Windows 桌面 Zotero AI 阅读插件，位于 Zotero iOS 仓库中的独立目录。
+# Zotero AI Reader 1.0.3 下载
 
-**当前可安装版本：1.0.2** — [下载 zotero-ai-reader-1.0.2.xpi](dist/zotero-ai-reader-1.0.2.xpi?raw=true)
+- [下载可直接安装的 1.0.3 XPI](https://github.com/meltaltoria/zotero-ios/raw/refs/heads/codex/zotero-ai-reader-v1.0.0/desktop-plugins/zotero-ai-reader/dist/zotero-ai-reader-1.0.3.xpi)
+- [下载 1.0.3 源码包](https://github.com/meltaltoria/zotero-ios/raw/refs/heads/codex/zotero-ai-reader-v1.0.0/desktop-plugins/zotero-ai-reader/dist/zotero-ai-reader-1.0.3-source.zip)
+- [验证记录与故障复现](VALIDATION.md) · [完整源码](src) · [更新记录](CHANGELOG.md)
+- [修复后文献库边栏](tests/reports/images/1.0.3-library-zh-CN.png) · [修复后阅读器操作区](tests/reports/images/1.0.3-reader-controls-zh-CN.png)
 
-1.0.2 补齐安装器必需的更新地址，并修复真实 Zotero 中的启动、边栏表单、网络请求和设置页初始化。官方 Linux Zotero 10.0.7 原生安装与 33 项功能检查已通过。旧 1.0.0 / 1.0.1 包缺少必填字段，请下载新版。
-
-- [1.0.2 源码包](dist/zotero-ai-reader-1.0.2-source.zip?raw=true)
-- [安装说明](dist/安装与使用说明.md) · [更新记录](CHANGELOG.md)
-- [验证说明](VALIDATION.md) · [原生测试报告](tests/reports/runtime-10.0.7.json)
-- [更新源](updates.json) · [SHA-256 校验和](dist/SHA256SUMS.txt)
-
-保留 `.xpi` 后缀，不要解压；在 Zotero **工具 → 插件 → 齿轮 → 从文件安装插件** 中选择 `1.0.2` 文件，完成后重启。
+安装后请完全退出并重启 Zotero。升级保留已有服务配置与密钥。截图来自生成的测试文献。源码包包含代码和 JSON 验证报告，示例截图单独保存在本仓库。
 
 ---
 
 # Zotero AI Reader · AI 阅读助手
 
-为 Windows 桌面版 Zotero 7、8、9、10 提供阅读器右侧 AI 边栏。请使用 **1.0.2**：此版本补齐 Zotero 安装器必需的 `update_url`，并修复了真实 Gecko 环境中的资源读取、边栏表单和设置页初始化问题。已在官方 Linux 版 Zotero 10.0.7 中通过真实安装及 33 项功能检查；尚未进行 Windows 实机验证。安装包是普通 XPI，无需 Node、Python 或额外的本地服务；使用本机模型时需自行启动 Ollama 等服务。
+为 Windows 桌面版 Zotero 7、8、9、10 提供阅读器右侧 AI 边栏。请使用 **1.0.3**：修复“API 可用，但边栏只显示 AI 阅读助手文字、图标文字竖排”的问题。已在官方 Linux 版 Zotero 10.0.7 的中文、英文界面分别通过 50 项原生检查，实际验证本地化重绘后的控件显示、发送、复制、存笔记和停止操作；尚未进行 Windows 实机验证。安装包是普通 XPI，无需 Node、Python 或额外的本地服务；使用本机模型时需自行启动 Ollama 等服务。
 
 ## 安装
 
-1. 下载 `zotero-ai-reader-1.0.2.xpi`，保留 `.xpi` 后缀，不要解压。1.0.0 和 1.0.1 缺少安装器要求的更新地址，请使用新版文件。
+1. 下载 `zotero-ai-reader-1.0.3.xpi`，保留 `.xpi` 后缀，不要解压。
 2. 打开 Zotero，进入 **工具 → 插件**（有些版本显示“附加组件”）。
 3. 点击右上角齿轮，选择 **从文件安装插件…**，选中 XPI，按 Zotero 提示完成安装。
-4. 如果边栏没有立即出现，重启 Zotero。
+4. **完全退出并重新启动 Zotero**，让新版界面和本地化资源重新加载。
 
 不支持 Zotero 6、浏览器 Zotero Connector 或 Zotero iOS。Windows 10/11 上使用桌面 Zotero 的插件安装入口即可。
 
-已有同 ID 旧版的用户可直接从文件安装 1.0.2 来升级，插件 ID 保持一致；已有服务配置和密码管理器中的密钥沿用。之前安装失败的用户请重新下载并选中文件名包含 `1.0.2` 的新包。
+已有同 ID 旧版的用户可直接从文件安装 1.0.3 来升级，插件 ID 保持一致；已有服务配置和密码管理器中的密钥沿用。请核对文件名包含 `1.0.3`。1.0.0 / 1.0.1 缺少安装器必需字段，1.0.2 存在边栏本地化覆盖控件的问题。
 
 ## 配置 AI
 
@@ -70,7 +66,8 @@
 
 | 现象 | 处理方式 |
 | --- | --- |
-| 提示不兼容 | 使用 Zotero 桌面版 7–10，重新下载并安装 `zotero-ai-reader-1.0.2.xpi`；旧 1.0.0 / 1.0.1 包缺少安装器要求的字段 |
+| 提示不兼容 | 使用 Zotero 桌面版 7–10，重新下载并安装 `zotero-ai-reader-1.0.3.xpi`；旧 1.0.0 / 1.0.1 包缺少安装器要求的字段 |
+| 只显示“AI 阅读助手”文字、图标文字竖排 | 升级 1.0.3 后完全退出并重启 Zotero；1.0.2 的界面本地化会覆盖边栏控件 |
 | 找不到 AI 边栏 | 重启 Zotero；展开右侧信息面板；在 PDF 选区浮窗点“AI 助读” |
 | HTTP 401 / 403 | 核对当前服务的密钥和模型访问权限 |
 | HTTP 404 | 检查 API 地址前缀和模型 ID，勿填普通网页地址 |
@@ -83,8 +80,8 @@
 
 ## 源码和重新打包
 
-解压源码包后，运行 `python build.py`（Windows）或 `python3 build.py`，生成 `dist/zotero-ai-reader-1.0.2.xpi`。构建只用 Python 标准库，无需安装 npm 包。构建时会校验 Zotero 必填清单字段，并同步生成包含安装包 SHA-256 的 `updates.json`。GitHub 上项目根目录的 `updates.json` 是插件的更新源；自行 fork 发布时请修改清单中的 `update_url`。
+解压源码包后，运行 `python build.py`（Windows）或 `python3 build.py`，生成 `dist/zotero-ai-reader-1.0.3.xpi`。构建只用 Python 标准库，无需安装 npm 包。构建时会校验 Zotero 必填清单字段，并同步生成包含安装包 SHA-256 的 `updates.json`。GitHub 上项目根目录的 `updates.json` 是插件的更新源；自行 fork 发布时请修改清单中的 `update_url`。
 
-核心测试：`node --test --test-isolation=none tests/core.test.cjs`（Node 24）。浏览器检查脚本为 `tests/ui-smoke.py`。真实 Zotero 集成脚本为 `tests/runtime-smoke.py`，测试镜像定义为 `tests/Dockerfile.zotero`，使用独立临时配置和本机模拟 AI 服务。将官方 Linux 版 Zotero 10.0.7 解压到 `runtime10/`，在容器中将工程映射到 `/workspace/work/zotero-ai-reader`，然后运行 `python3 tests/runtime-smoke.py 10.0.7 runtime10/Zotero_linux-x86_64/zotero`。负向安装对照需要 `dist/zotero-ai-reader-1.0.1.xpi`，GitHub 仓库保留了该历史文件。测试脚本、配置及第三方 Zotero 运行时不打入发布 XPI。
+核心测试：`node --test --test-isolation=none tests/core.test.cjs`（Node 24）。浏览器检查脚本为 `tests/ui-smoke.py`。真实 Zotero 集成脚本为 `tests/runtime-smoke.py`，测试镜像定义为 `tests/Dockerfile.zotero`，使用独立临时配置和本机模拟 AI 服务。将官方 Linux 版 Zotero 10.0.7 解压到 `runtime10/`，在容器中将工程映射到 `/workspace/work/zotero-ai-reader`，然后运行 `python3 tests/runtime-smoke.py 10.0.7 runtime10/Zotero_linux-x86_64/zotero --locale zh-CN`；英文检查将语言参数改为 `en-US`。负向安装对照需要 `dist/zotero-ai-reader-1.0.1.xpi`，GitHub 仓库保留了该历史文件。测试脚本、配置及第三方 Zotero 运行时不打入发布 XPI。原生报告和故障复现见 `VALIDATION.md`；生成的示例界面截图位于 `tests/reports/images/`。
 
 许可：MIT。此为独立插件，不属于 Zotero 官方产品。

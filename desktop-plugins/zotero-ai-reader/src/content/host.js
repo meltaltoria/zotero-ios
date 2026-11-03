@@ -215,7 +215,8 @@ var AIReaderPlugin = class {
       container.pinnedPane = this.sectionID;
       container.scrollToPane?.(this.sectionID);
     }
-    const pane = container?.querySelector(`[data-pane="${this.sectionID}"]`);
+    // Registered pane IDs contain literal CSS escape characters; let Zotero resolve them.
+    const pane = container?.getPane?.(this.sectionID);
     if (pane) { pane.open = true; pane.scrollIntoView({ block: "nearest" }); }
   }
   selectionContext(value) {

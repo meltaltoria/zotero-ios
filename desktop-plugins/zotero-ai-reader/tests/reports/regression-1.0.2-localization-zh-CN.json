@@ -1,0 +1,44 @@
+{
+  "checks": [
+    "old 1.0.1 rejected by real Zotero installer",
+    "new XPI passes real manifest validation",
+    "native add-on installation completed",
+    "extension booted",
+    "official sidebar section registered",
+    "settings registered",
+    "Tools menu installed",
+    "password manager roundtrip",
+    "credentials isolated by endpoint",
+    "no plaintext key in preferences",
+    "privileged HTTP and SSE in Zotero",
+    "nonstream provider response",
+    "HTTP errors redact credentials",
+    "PDF fixture attached",
+    "real Zotero PDF text extraction",
+    "PDF reader opened",
+    "sidebar rendered by Zotero lifecycle"
+  ],
+  "success": false,
+  "old_install": {
+    "error": -3,
+    "state": 4,
+    "addon_id": null
+  },
+  "new_install": {
+    "error": 0,
+    "state": 3,
+    "addon_id": "ai-reader@local.zotero",
+    "compatible": true
+  },
+  "visible_dom": {
+    "panel_connected": false,
+    "live_question": false,
+    "section_label": null
+  },
+  "error": "sidebar stays connected after Fluent translation\ncheck@jar:file:///workspace/work/zotero-ai-reader/tests/profile-10.0.7-zh-CN/extensions/zzz-ai-reader-driver@local.test.xpi!/bootstrap.js:17:21\nrun@jar:file:///workspace/work/zotero-ai-reader/tests/profile-10.0.7-zh-CN/extensions/zzz-ai-reader-driver@local.test.xpi!/bootstrap.js:111:8\n",
+  "zotero_version": "10.0.7",
+  "platform": "Linux container, official Zotero desktop runtime",
+  "locale": "zh-CN",
+  "plugin_version": "1.0.2",
+  "xpi_sha256": "185cb8cabeb16465b71a7a826efad7c843542f71a288ad362ce3fbc1511c0f67"
+}

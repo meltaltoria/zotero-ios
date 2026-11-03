@@ -1,0 +1,139 @@
+{
+  "checks": [
+    "old 1.0.1 rejected by real Zotero installer",
+    "new XPI passes real manifest validation",
+    "native add-on installation completed",
+    "extension booted",
+    "official sidebar section registered",
+    "settings registered",
+    "Tools menu installed",
+    "password manager roundtrip",
+    "credentials isolated by endpoint",
+    "no plaintext key in preferences",
+    "privileged HTTP and SSE in Zotero",
+    "nonstream provider response",
+    "HTTP errors redact credentials",
+    "PDF fixture attached",
+    "real Zotero PDF text extraction",
+    "library panel is connected after localization",
+    "library question is in the live document",
+    "library panel has visible dimensions",
+    "library localized title uses label attribute",
+    "library sidenav is icon-only",
+    "library sidenav tooltip is localized",
+    "library source selector loads material through UI",
+    "PDF reader opened",
+    "sidebar rendered by Zotero lifecycle",
+    "sidebar stays connected after Fluent translation",
+    "sidebar question exists in live document after Fluent translation",
+    "reader panel is connected after localization",
+    "reader question is in the live document",
+    "reader panel has visible dimensions",
+    "reader localized title uses label attribute",
+    "reader sidenav is icon-only",
+    "reader sidenav tooltip is localized",
+    "reader sidebar uses current attachment",
+    "safe sidebar DOM",
+    "native XHTML question control retained",
+    "selection popup transfers text without sending",
+    "reader question control can be scrolled into the viewport",
+    "document conversation complete",
+    "AI answer is visible in connected reader DOM",
+    "stream request cleaned up",
+    "other document conversation isolated",
+    "copy button writes the native clipboard",
+    "native Zotero child note saved",
+    "note does not contain executable AI HTML",
+    "stop generation aborts request",
+    "settings fragment and script loaded",
+    "settings never reveal saved key",
+    "saved credential can be deleted",
+    "shutdown removes sidebar and bridge",
+    "shutdown removes Tools menu"
+  ],
+  "success": true,
+  "old_install": {
+    "error": -3,
+    "state": 4,
+    "addon_id": null
+  },
+  "new_install": {
+    "error": 0,
+    "state": 3,
+    "addon_id": "ai-reader@local.zotero",
+    "compatible": true
+  },
+  "library_sidenav": {
+    "pane_id": "ai-reader\\@local\\.zotero-ai-reader-section",
+    "sidenav_tag": "item-pane-sidenav",
+    "button_exists": true,
+    "text": "",
+    "tooltip": "AI 辅助阅读",
+    "candidates": [
+      {
+        "tag": "item-pane-custom-section",
+        "cls": null,
+        "text": "AI 阅读助手.air-panel { --air-accent:#315dca; --air-bg:var(--mat"
+      },
+      {
+        "tag": "collapsible-section",
+        "cls": "",
+        "text": "AI 阅读助手.air-panel { --air-accent:#315dca; --air-bg:var(--mat"
+      },
+      {
+        "tag": "div",
+        "cls": "btn",
+        "text": ""
+      }
+    ]
+  },
+  "visible_dom": {
+    "panel_connected": true,
+    "live_question": true,
+    "section_label": "AI 阅读助手"
+  },
+  "reader_sidenav": {
+    "pane_id": "ai-reader\\@local\\.zotero-ai-reader-section",
+    "sidenav_tag": "item-pane-sidenav",
+    "button_exists": true,
+    "text": "",
+    "tooltip": "AI 辅助阅读",
+    "candidates": [
+      {
+        "tag": "item-pane-custom-section",
+        "cls": null,
+        "text": "AI 阅读助手.air-panel { --air-accent:#315dca; --air-bg:var(--mat"
+      },
+      {
+        "tag": "collapsible-section",
+        "cls": "",
+        "text": "AI 阅读助手.air-panel { --air-accent:#315dca; --air-bg:var(--mat"
+      },
+      {
+        "tag": "div",
+        "cls": "btn",
+        "text": ""
+      },
+      {
+        "tag": "item-pane-custom-section",
+        "cls": null,
+        "text": "AI 阅读助手.air-panel { --air-accent:#315dca; --air-bg:var(--mat"
+      },
+      {
+        "tag": "collapsible-section",
+        "cls": "",
+        "text": "AI 阅读助手.air-panel { --air-accent:#315dca; --air-bg:var(--mat"
+      },
+      {
+        "tag": "div",
+        "cls": "btn",
+        "text": ""
+      }
+    ]
+  },
+  "zotero_version": "10.0.7",
+  "platform": "Linux container, official Zotero desktop runtime",
+  "locale": "zh-CN",
+  "plugin_version": "1.0.3",
+  "xpi_sha256": "4dc7b377a08a56515cdd5255e575b4d42aee4e568bdb4c7a32283c382bc2b6da"
+}

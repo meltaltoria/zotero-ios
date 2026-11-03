@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "AI Reader · AI 阅读助手",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "在 Zotero 阅读器边栏解释、翻译和讨论论文；支持自行配置 OpenAI 兼容 AI 服务。",
   "author": "AI Reader contributors",
   "icons": { "48": "content/icon.svg", "96": "content/icon.svg" },
