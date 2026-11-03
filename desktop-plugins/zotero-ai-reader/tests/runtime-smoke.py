@@ -61,9 +61,11 @@ def main(version, binary):
         'extensions.zotero.repository.lastCheck.localTime': 2147483647,
         'app.update.enabled': False, 'app.update.auto': False, 'browser.shell.checkDefaultBrowser': False}
     (profile / 'user.js').write_text('\n'.join(f'user_pref({json.dumps(k)}, {json.dumps(v)});' for k,v in prefs.items()))
-    shutil.copy(ROOT / 'dist' / 'zotero-ai-reader-1.0.0.xpi', extensions / 'ai-reader@local.zotero.xpi')
+    package_manifest = json.loads((ROOT / 'src' / 'manifest.json').read_text())
+    package_version = package_manifest['version']
+    shutil.copy(ROOT / 'dist' / f'zotero-ai-reader-{package_version}.xpi', extensions / 'ai-reader@local.zotero.xpi')
     manifest = {'manifest_version': 2, 'name': 'AI Reader integration driver', 'version': '1.0',
-        'applications': {'zotero': {'id': 'zzz-ai-reader-driver@local.test', 'strict_min_version': '7.0', 'strict_max_version': '9.*'}}}
+        'applications': {'zotero': {'id': 'zzz-ai-reader-driver@local.test', 'strict_min_version': '7.0', 'strict_max_version': package_manifest['applications']['zotero']['strict_max_version']}}}
     with zipfile.ZipFile(extensions / 'zzz-ai-reader-driver@local.test.xpi', 'w') as z:
         z.writestr('manifest.json', json.dumps(manifest)); z.write(ROOT / 'tests' / 'runtime-driver.js', 'bootstrap.js')
     pdf_fixture(ROOT / 'tests' / 'fixture.pdf')

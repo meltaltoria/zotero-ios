@@ -51,7 +51,8 @@ MOCK = r'''async () => {
     removeLogin: old => logins.splice(logins.indexOf(old), 1)
   } };
   window.Components = { classes: { '@mozilla.org/login-manager/loginInfo;1': { createInstance: () => ({ init(origin, form, realm, user, password) { Object.assign(this, { origin, realm, password }); } }) } }, interfaces: { nsILoginInfo: {} } };
-  window.host = new AIReaderPlugin({ id: 'ai-reader@local.zotero', version: '1.0.0', rootURI: location.origin + '/src/' });
+  const manifest = await fetch('/src/manifest.json').then(r => r.json());
+  window.host = new AIReaderPlugin({ id: 'ai-reader@local.zotero', version: manifest.version, rootURI: location.origin + '/src/' });
   await host.start();
   await host.saveSettings({ ...host.getSettings(), baseURL: location.origin + '/v1', model: 'fixture-model', noAuth: true });
   const body = document.querySelector('#panel-body');
