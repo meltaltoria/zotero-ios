@@ -1,0 +1,28 @@
+<vbox xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul" xmlns:html="http://www.w3.org/1999/xhtml" id="air-settings-pane">
+  <html:div class="air-settings">
+    <html:div class="air-settings-kicker">AI READER / 连接设置</html:div>
+    <html:h1>连接你的阅读助手</html:h1>
+    <html:p class="air-settings-intro">支持 OpenAI 兼容的 Chat Completions 服务。配置保存在本机，插件不附带共享密钥。</html:p>
+    <html:label>快速填入服务配置
+      <html:select id="air-profile"><html:option value="custom">自定义 / 保留当前配置</html:option><html:option value="openai">OpenAI</html:option><html:option value="deepseek">DeepSeek</html:option><html:option value="ollama">本机 Ollama</html:option></html:select>
+    </html:label>
+    <html:label>API 服务地址<html:input id="air-baseURL" type="url" placeholder="https://api.deepseek.com/v1" spellcheck="false" /></html:label>
+    <html:p class="air-settings-hint">可填写基础地址（含 /v1）或完整的 /chat/completions 地址。远程服务使用 HTTPS。</html:p>
+    <html:label>模型名称<html:input id="air-model" type="text" spellcheck="false" placeholder="deepseek-chat" maxlength="160" /></html:label>
+    <html:label>API Key<html:input id="air-key" type="password" autocomplete="new-password" spellcheck="false" placeholder="输入该服务的 API Key" /></html:label>
+    <html:div class="air-settings-hint" id="air-key-status" role="status" aria-live="polite"></html:div>
+    <html:label class="air-checkbox"><html:input id="air-removeKey" type="checkbox" />删除当前服务已保存的密钥</html:label>
+    <html:label class="air-checkbox"><html:input id="air-noAuth" type="checkbox" />此服务无需密钥（例如本机 Ollama）</html:label>
+    <html:div class="air-settings-grid">
+      <html:label>回答语言<html:input id="air-language" type="text" maxlength="80" /></html:label>
+      <html:label>每次材料字符上限<html:input id="air-maxContextChars" type="number" min="2000" max="120000" step="1000" /></html:label>
+      <html:label>输出 Token 上限<html:input id="air-maxOutputTokens" type="number" min="128" max="16384" step="128" /></html:label>
+      <html:label>请求超时（秒）<html:input id="air-timeout" type="number" min="15" max="600" step="15" /></html:label>
+    </html:div>
+    <html:label class="air-checkbox"><html:input id="air-stream" type="checkbox" />流式显示回答</html:label>
+    <html:p class="air-settings-hint">长文超出字符上限时会截断并提示；可缩小材料范围后提问。不同服务支持的模型、额度和上下文长度各不相同。</html:p>
+    <html:div class="air-settings-actions"><html:button id="air-save" type="button">保存设置</html:button><html:button id="air-test" type="button">保存并测试连接</html:button></html:div>
+    <html:div id="air-settings-status" class="air-settings-status" role="status" aria-live="polite"></html:div>
+    <html:p class="air-settings-hint">测试只发送一条简短的 OK 请求，可能计入服务用量。密钥保存在 Zotero 密码管理器中；阅读对话只保留在本次 Zotero 会话内，点击“存为笔记”后才保存到文献库。</html:p>
+  </html:div>
+</vbox>

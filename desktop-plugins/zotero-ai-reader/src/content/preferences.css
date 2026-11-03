@@ -1,0 +1,17 @@
+.air-settings { max-width:660px; padding:8px 4px 20px; color:var(--fill-primary,#202b3d); font:13px/1.6 "Segoe UI","Microsoft YaHei",sans-serif; }
+.air-settings-kicker { color:#315dca; letter-spacing:.12em; font-size:11px; font-weight:700; }
+.air-settings h1 { font-size:24px; margin:10px 0; font-weight:650; }
+.air-settings-intro { color:var(--fill-secondary,#58667c); margin-bottom:22px; }
+.air-settings label:not(.air-checkbox) { display:flex; flex-direction:column; font-weight:600; gap:5px; margin:13px 0 5px; }
+.air-settings input:not([type="checkbox"]),.air-settings select { display:block; box-sizing:border-box; width:100%; padding:8px 10px; border:1px solid var(--fill-quinary,#ccd3e1); border-radius:6px; color:inherit; background:var(--material-background,#fff); font:inherit; min-height:36px; }
+.air-settings input:focus-visible,.air-settings select:focus-visible,.air-settings button:focus-visible { outline:2px solid #315dca; outline-offset:2px; }
+.air-settings-grid { display:grid; grid-template-columns:1fr 1fr; gap:0 18px; }
+.air-settings .air-checkbox { display:flex; align-items:center; gap:7px; margin:11px 0; font-weight:400; }
+.air-settings-hint { color:var(--fill-secondary,#667287); font-size:11px; margin:6px 0 12px; }
+.air-settings-actions { display:flex; gap:9px; margin-top:18px; }
+.air-settings button { padding:8px 15px; border:1px solid #315dca; border-radius:6px; background:transparent; color:#315dca; font:inherit; cursor:pointer; }
+.air-settings #air-save { background:#315dca; color:white; }
+.air-settings button:disabled { opacity:.5; cursor:default; }
+.air-settings-status { margin:14px 0 8px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.air-settings-error { color:#b43229; }
+@media(prefers-color-scheme:dark) { .air-settings-kicker,.air-settings #air-test { color:#91b4ff; } .air-settings-error { color:#ffa69d; } }

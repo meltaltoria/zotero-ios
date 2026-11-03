@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "checks": [
+    "no request sent on startup",
+    "sidebar rendered",
+    "settings route",
+    "selection popup transfers page context without sending",
+    "fulltext read bounded and truncation shown",
+    "real HTTP streaming answer displayed",
+    "AI HTML rendered as harmless text",
+    "copy latest answer",
+    "save document child note",
+    "document switch isolates chat and context",
+    "return restores original conversation",
+    "cancel preserves partial response and releases request",
+    "HTTP failure keeps question for retry",
+    "nonstream request completes",
+    "settings load current config",
+    "settings never show saved secret",
+    "provider preset fills endpoint and model",
+    "key saved in password manager only",
+    "saved key field cleared",
+    "other endpoint cannot reuse saved key",
+    "credential deletion",
+    "shutdown cleans listeners, panels and bridge",
+    "no uncaught browser errors"
+  ],
+  "provider": "local simulated OpenAI-compatible HTTP server",
+  "native_zotero_api": "fixture adapter"
+}
